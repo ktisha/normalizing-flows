@@ -68,66 +68,60 @@ def planar_flow(Z_0, W, U, b, K):
     return Z_K, logdet
 
 
-def loss(K, potential):
-    mean = T.dvector("mean")
-    covar = T.dvector("covar")
-    Z_0 = T.dmatrix("Z_0")
-    W = T.dmatrix("W")
-    U = T.dmatrix("U")
-    b = T.dvector("b")
-
-    Z_K, logdet = planar_flow(Z_0, W, U, b, K)
-    log_q = mvn_logpdf(Z_0, mean, covar)
-    for k in range(K):
-        log_q -= logdet[k]
-
-    # KL[q_K(z)||exp(-U(z))] ≅ mean(log q_K(z) + U(z)) + const(z)
-    # XXX the loss is equal to KL up to an additive constant, thus the
-    #     computed value might get negative (while KL cannot).
-    kl = (log_q + potential(Z_K)).mean()
-    kl_grad = T.grad(kl, [mean, covar, W, U, b])
-    return (theano.function([Z_0, W, U, b], Z_K),
-            theano.function([Z_0, mean, covar, W, U, b], kl),
-            theano.function([Z_0, mean, covar, W, U, b], kl_grad))
-
-
 class NormalizingFlow:
     def __init__(self, K, n_iter=1000, batch_size=2500, alpha=0.01):
+        self.D = 2
         self.K = K
         self.n_iter = n_iter
         self.batch_size = batch_size
         self.alpha = alpha
 
-    def fit(self, potential):
-        n_features = 2
-        self.kl_ = []
-        self.mean_ = np.zeros(n_features)
-        self.covar_ = np.ones(n_features)
-        self.W_ = np.random.random(size=(self.K, n_features))
-        self.U_ = np.random.random(size=(self.K, n_features))
-        self.b_ = np.random.random(size=self.K)
+    def _assemble(self, potential):
+        mean = theano.shared(np.zeros(self.D), "mean")
+        covar = theano.shared(np.ones(self.D), "covar")
 
-        self.flow_, kl, kl_grad = loss(self.K, potential)
+        Z_0 = T.dmatrix("Z_0")
+        W = theano.shared(np.random.random((self.K, self.D)), "W")
+        U = theano.shared(np.random.random((self.K, self.D)), "U")
+        b = theano.shared(np.random.random(self.K), "b")
+
+        Z_K, logdet = planar_flow(Z_0, W, U, b, self.K)
+        self.flow_ = theano.function([Z_0], Z_K)
+
+        log_q = mvn_logpdf(Z_0, mean, covar)
+        for k in range(self.K):
+            log_q -= logdet[k]
+
+        # KL[q_K(z)||exp(-U(z))] ≅ mean(log q_K(z) + U(z)) + const(z)
+        # XXX the loss is equal to KL up to an additive constant, thus the
+        #     computed value might get negative (while KL cannot).
+        kl = (log_q + potential(Z_K)).mean()
+        dmean, dcovar, dW, dU, db = T.grad(kl, [mean, covar, W, U, b])
+        return mean, covar, theano.function([Z_0], kl, updates=[
+            (mean, mean - self.alpha * dmean),
+            (covar, covar - self.alpha * dcovar),
+            (W, W - self.alpha * dW),
+            (U, U - self.alpha * dU),
+            (b, b - self.alpha * db)])
+
+    def fit(self, potential):
+        mean, covar, step = self._assemble(potential)
+        self.kl_ = []
         for i in range(self.n_iter):
             Z_0 = np.random.multivariate_normal(
-                self.mean_, np.diag(self.covar_), size=self.batch_size)
-
-            args = Z_0, self.mean_, self.covar_, self.W_, self.U_, self.b_
-            self.kl_.append(kl(*args))
+                mean.get_value(), np.diag(covar.get_value()),
+                size=self.batch_size)
+            self.kl_.append(step(Z_0))
             print(self.kl_[-1])
 
-            dmean, dcovar, dW, dU, db = kl_grad(*args)
-            self.mean_ -= self.alpha * dmean
-            self.covar_ -= self.alpha * dcovar
-            self.W_ -= self.alpha * dW
-            self.U_ -= self.alpha * dU
-            self.b_ -= self.alpha * db
+        self.mean_ = mean.get_value()
+        self.covar_ = covar.get_value()
         return self
 
     def sample(self, n_samples=1):
         Z_0 = np.random.multivariate_normal(
             self.mean_, np.diag(self.covar_), size=n_samples)
-        return self.flow_(Z_0, self.W_, self.U_, self.b_)
+        return self.flow_(Z_0)
 
 
 def plot_potentials(Z):
@@ -154,8 +148,8 @@ if __name__ == "__main__":
     # Z = Potential(1).sample(n_samples)
     # plot_potential_sample(Z)
 
-    nf = NormalizingFlow(8, batch_size=5000, n_iter=50000)
-    nf.fit(lambda Z: potential(Z, 1))
+    nf = NormalizingFlow(16, batch_size=5000, n_iter=10000)
+    nf.fit(lambda Z: potential(Z, 4))
     plt.plot(range(len(nf.kl_)), nf.kl_)
     plt.grid(True)
     plt.show()
