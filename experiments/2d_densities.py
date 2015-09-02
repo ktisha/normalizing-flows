@@ -75,7 +75,7 @@ def planar_flow(W, U, b, K):
         # tanh'(z) = 1 - [tanh(z)]^2.
         psi_k = (1 - T.square(tanh_k)) * W[k]
         # we use .5 log(x^2) instead of log|x|.
-        logdet = -.5 * T.log(T.square(1 + psi_k.dot(U_hat_k))) + logdet
+        logdet = .5 * T.log(T.square(1 + psi_k.dot(U_hat_k))) + logdet
 
     return Z_0, Z_K, logdet
 
