@@ -2,7 +2,7 @@ import pickle
 
 import numpy as np
 import theano
-from lasagne.updates import rmsprop
+from lasagne.updates import rmsprop, apply_nesterov_momentum
 from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
 from theano import tensor as T
@@ -24,7 +24,9 @@ def mvn_logpdf(X, mean, covar):
     ...             f(X, mean, covar))
     True
     """
-    return -.5 * (X.shape[1] * T.log(2 * np.pi)
+    # XXX the cast is necessary because shapes are int64.
+    N = X.shape[1].astype(X.dtype)
+    return -.5 * (N * T.log(2 * np.pi)
                   + T.log(covar).sum()
                   + (T.square(X - mean) / covar).sum(axis=1))
 
@@ -119,7 +121,8 @@ class NormalizingFlow:
         #     computed value might get negative (while KL cannot).
         kl = (log_q + potential(Z_K)).mean()
         params = [mean, covar, W, U, b]
-        updates = rmsprop(kl, params, learning_rate=1e-5)
+        updates = apply_nesterov_momentum(
+            rmsprop(kl, params, learning_rate=1e-4), params)
         return params, theano.function([Z_0], kl, updates=updates)
 
     def fit(self, potential):
@@ -129,7 +132,6 @@ class NormalizingFlow:
             Z_0 = np.random.normal(mean.get_value(), covar.get_value(),
                                    size=(self.batch_size, self.D))
             self.kl_[i] = step(as_floatX(Z_0))
-            print(self.kl_[i])
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
