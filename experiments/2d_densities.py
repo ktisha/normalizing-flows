@@ -1,3 +1,4 @@
+import os.path
 import pickle
 
 import numpy as np
@@ -32,9 +33,7 @@ def mvn_logpdf(X, mean, covar):
 
 
 def potential(Z, n):
-    Z1 = Z[:, 0]
-    Z2 = Z[:, 1]
-
+    Z1, Z2 = Z[:, 0], Z[:, 1]
     w1 = T.sin(2 * np.pi * Z1 / 4)
     if n == 1:
         return (.5 * T.square((Z.norm(2, axis=1) - 2) / 0.4)
@@ -50,20 +49,6 @@ def potential(Z, n):
         w3 = 3 * T.nnet.sigmoid((Z1 - 1) / 0.3)
         return -T.log(T.exp(-.5 * T.square((Z2 - w1) / 0.4))
                       + T.exp(-.5 * T.square((Z2 - w1 + w3) / 0.35)))
-
-
-class Potential:
-    def __init__(self, n):
-        self.n = n
-
-    def __call__(self, Z):
-        Z = T.tensor3("Z")
-        return theano.function([Z], potential(Z, self.n))
-
-    def plot(self, Z, where=plt):
-        # XXX the pictures in the paper seem to have the y-axis flipped.
-        where.scatter(Z[:, 0], -Z[:, 1], c=np.exp(-self(Z)), s=5, edgecolor="")
-        where.set_title(self.n)
 
 
 def planar_flow(W, U, b, K):
@@ -98,8 +83,13 @@ class NormalizingFlow:
         return state
 
     def __setstate__(self, state):
-        # TODO: restore flow_.
         vars(self).update(state)
+
+        W = theano.shared(self.W_, "W")
+        U = theano.shared(self.U_, "U")
+        b = theano.shared(self.b_, "b")
+        Z_0, Z_K, _logdet = planar_flow(W, U, b, self.K)
+        self.flow_ = theano.function([Z_0], Z_K)
 
     def _assemble(self, potential):
         mean = theano.shared(as_floatX(np.zeros(self.D)), "mean")
@@ -132,7 +122,7 @@ class NormalizingFlow:
             Z_0 = np.random.normal(mean.get_value(), covar.get_value(),
                                    size=(self.batch_size, self.D))
             self.kl_[i] = step(as_floatX(Z_0))
-            print("{}/{}: {:8.6f}".format(i, self.n_iter, self.kl_[i]))
+            print("{}/{}: {:8.6f}".format(i + 1, self.n_iter, self.kl_[i]))
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
@@ -147,37 +137,39 @@ class NormalizingFlow:
         return self.flow_(as_floatX(Z_0))
 
 
-def plot_potentials(Z):
-    _fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
-        2, 2, sharex="col", sharey="row")
-    Potential(1).plot(Z, ax1)
-    Potential(2).plot(Z, ax2)
-    Potential(3).plot(Z, ax3)
-    Potential(4).plot(Z, ax4)
+def plot_potential(Z, p, where=plt):
+    # XXX the pictures in the paper seem to have the y-axis flipped.
+    where.scatter(Z[:, 0], -Z[:, 1], c=np.exp(-p(Z)), s=5, edgecolor="")
 
 
-def plot_potential_sample(Z):
+def plot_potential_sample(Z, k, where=plt):
     H, xedges, yedges = np.histogram2d(Z[:, 0], Z[:, 1], bins=100)
     H = np.flipud(np.rot90(H))
     Hmasked = np.ma.masked_where(H == 0, H)
-    plt.pcolormesh(xedges, yedges, Hmasked)
+    where.pcolormesh(xedges, yedges, Hmasked)
+    where.set_title("K = {}".format(k))
 
 
 if __name__ == "__main__":
-    n_samples = 10000000  # <-- the more the better.
-    # Z = np.random.uniform(-4, 4, size=(n_samples, 2))
-    # plot_potentials()
+    n_samples = 100000
+    _fig, grid = plt.subplots(4, 4, sharex="col", sharey="row")
+    for n, row in enumerate(grid, 1):
+        Z = T.matrix("Z")
+        p = theano.function([Z], potential(Z, n))
+        plot_potential(np.random.uniform(-4, 4, size=(n_samples, 2)), p,
+                       where=row[0])
 
-    # Z = Potential(1).sample(n_samples)
-    # plot_potential_sample(Z)
+        for i, k in enumerate([2, 8, 16], 1):
+            path = "./potential_{}_k{}.pickle".format(n, k)
+            if os.path.exists(path):
+                with open(path, "rb") as f:
+                    nf = pickle.load(f)
+            else:
+                nf = NormalizingFlow(k, batch_size=10000, n_iter=10000)
+                nf.fit(lambda Z: potential(Z, n))
+                with open(path, "wb") as f:
+                    pickle.dump(nf, f)
 
-    nf = NormalizingFlow(16, batch_size=10000, n_iter=100000)
-    nf.fit(lambda Z: potential(Z, 1))
-    with open("./planar-16.pickle", "wb") as f:
-        pickle.dump(nf, f)
-    plt.plot(range(len(nf.kl_)), nf.kl_)
-    plt.grid(True)
-    plt.show()
+            plot_potential_sample(nf.sample(n_samples), k, row[i])
 
-    plot_potential_sample(nf.sample(n_samples))
     plt.show()
