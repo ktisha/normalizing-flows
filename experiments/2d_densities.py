@@ -1,5 +1,6 @@
 import numpy as np
 import theano
+from lasagne.updates import rmsprop
 from matplotlib import pyplot as plt
 from theano import tensor as T
 
@@ -7,11 +8,22 @@ from theano import tensor as T
 def mvn_logpdf(X, mean, covar):
     """Return a theano expression representing the values of the log probability
     density function of the multivariate normal with diagonal covariance.
+
+    >>> X = T.dmatrix("X")
+    >>> mean = T.dvector("mean")
+    >>> covar = T.dvector("covar")
+    >>> f = theano.function([X, mean, covar], mvn_logpdf(X, mean, covar))
+
+    >>> from scipy.stats import multivariate_normal
+    >>> X = np.array([[-2, 0], [1, -4]])
+    >>> mean, covar = np.array([-1, 1]), np.array([.4, .2])
+    >>> np.allclose(multivariate_normal.logpdf(X, mean, np.diag(covar)),
+    ...             f(X, mean, covar))
+    True
     """
-    return -.5 * (X.shape[1] * T.log(2 * np.pi) + T.log(covar).sum()
-                  + ((mean ** 2) / covar).sum()
-                  - 2 * X.dot((mean / covar).T)
-                  + T.dot(X ** 2, (1 / covar).T))
+    return -.5 * (X.shape[1] * T.log(2 * np.pi)
+                  + T.log(covar).sum()
+                  + (T.square(X - mean) / covar).sum(axis=1))
 
 
 def potential(Z, n):
@@ -69,12 +81,11 @@ def planar_flow(Z_0, W, U, b, K):
 
 
 class NormalizingFlow:
-    def __init__(self, K, n_iter=1000, batch_size=2500, alpha=0.01):
+    def __init__(self, K, n_iter=1000, batch_size=2500):
         self.D = 2
         self.K = K
         self.n_iter = n_iter
         self.batch_size = batch_size
-        self.alpha = alpha
 
     def _assemble(self, potential):
         mean = theano.shared(np.zeros(self.D), "mean")
@@ -96,13 +107,9 @@ class NormalizingFlow:
         # XXX the loss is equal to KL up to an additive constant, thus the
         #     computed value might get negative (while KL cannot).
         kl = (log_q + potential(Z_K)).mean()
-        dmean, dcovar, dW, dU, db = T.grad(kl, [mean, covar, W, U, b])
-        return mean, covar, theano.function([Z_0], kl, updates=[
-            (mean, mean - self.alpha * dmean),
-            (covar, covar - self.alpha * dcovar),
-            (W, W - self.alpha * dW),
-            (U, U - self.alpha * dU),
-            (b, b - self.alpha * db)])
+        params = [mean, covar, W, U, b]
+        updates = rmsprop(kl, params, learning_rate=1e-4)
+        return mean, covar, theano.function([Z_0], kl, updates=updates)
 
     def fit(self, potential):
         mean, covar, step = self._assemble(potential)
@@ -148,8 +155,8 @@ if __name__ == "__main__":
     # Z = Potential(1).sample(n_samples)
     # plot_potential_sample(Z)
 
-    nf = NormalizingFlow(16, batch_size=5000, n_iter=10000)
-    nf.fit(lambda Z: potential(Z, 4))
+    nf = NormalizingFlow(4, batch_size=100, n_iter=100000)
+    nf.fit(lambda Z: potential(Z, 1))
     plt.plot(range(len(nf.kl_)), nf.kl_)
     plt.grid(True)
     plt.show()

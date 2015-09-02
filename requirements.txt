@@ -1,4 +1,5 @@
-theano
+Theano==0.7.0
 numpy
 matplotlib
 scipy
+Lasagne==0.1
