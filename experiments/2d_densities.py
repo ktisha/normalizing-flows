@@ -132,6 +132,7 @@ class NormalizingFlow:
             Z_0 = np.random.normal(mean.get_value(), covar.get_value(),
                                    size=(self.batch_size, self.D))
             self.kl_[i] = step(as_floatX(Z_0))
+            print("{}/{}: {:8.6f}".format(i, self.n_iter, self.kl_[i]))
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
@@ -170,7 +171,7 @@ if __name__ == "__main__":
     # Z = Potential(1).sample(n_samples)
     # plot_potential_sample(Z)
 
-    nf = NormalizingFlow(16, batch_size=100, n_iter=10000000)
+    nf = NormalizingFlow(16, batch_size=10000, n_iter=100000)
     nf.fit(lambda Z: potential(Z, 1))
     with open("./planar-16.pickle", "wb") as f:
         pickle.dump(nf, f)
