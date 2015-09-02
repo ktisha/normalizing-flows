@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import theano
 from lasagne.updates import rmsprop
@@ -61,8 +63,8 @@ class Potential:
         where.set_title(self.n)
 
 
-def planar_flow(Z_0, W, U, b, K):
-    Z_K = Z_0
+def planar_flow(W, U, b, K):
+    Z_K = Z_0 = T.dmatrix("Z_0")
     logdet = []
     for k in range(K):
         wTu = W[k].dot(U[k])
@@ -77,26 +79,34 @@ def planar_flow(Z_0, W, U, b, K):
         # we use .5 log(x^2) instead of log|x|.
         logdet.append(.5 * T.log(T.square(1 + psi_k.dot(U_hat_k))))
 
-    return Z_K, logdet
+    return Z_0, Z_K, logdet
 
 
 class NormalizingFlow:
-    def __init__(self, K, n_iter=1000, batch_size=2500):
+    def __init__(self, K, batch_size=2500, n_iter=1000):
         self.D = 2
         self.K = K
-        self.n_iter = n_iter
         self.batch_size = batch_size
+        self.n_iter = n_iter
+
+    def __getstate__(self):
+        state = dict(vars(self))
+        del state["flow_"]
+        return state
+
+    def __setstate__(self, state):
+        # TODO: restore flow_.
+        vars(self).update(state)
 
     def _assemble(self, potential):
         mean = theano.shared(np.zeros(self.D), "mean")
         covar = theano.shared(np.ones(self.D), "covar")
 
-        Z_0 = T.dmatrix("Z_0")
         W = theano.shared(np.random.random((self.K, self.D)), "W")
         U = theano.shared(np.random.random((self.K, self.D)), "U")
         b = theano.shared(np.random.random(self.K), "b")
 
-        Z_K, logdet = planar_flow(Z_0, W, U, b, self.K)
+        Z_0, Z_K, logdet = planar_flow(W, U, b, self.K)
         self.flow_ = theano.function([Z_0], Z_K)
 
         log_q = mvn_logpdf(Z_0, mean, covar)
@@ -108,21 +118,24 @@ class NormalizingFlow:
         #     computed value might get negative (while KL cannot).
         kl = (log_q + potential(Z_K)).mean()
         params = [mean, covar, W, U, b]
-        updates = rmsprop(kl, params, learning_rate=1e-4)
-        return mean, covar, theano.function([Z_0], kl, updates=updates)
+        updates = rmsprop(kl, params, learning_rate=1e-5)
+        return params, theano.function([Z_0], kl, updates=updates)
 
     def fit(self, potential):
-        mean, covar, step = self._assemble(potential)
-        self.kl_ = []
+        (mean, covar, W, U, b), step = self._assemble(potential)
+        self.kl_ = np.empty(self.n_iter)
         for i in range(self.n_iter):
             Z_0 = np.random.multivariate_normal(
                 mean.get_value(), np.diag(covar.get_value()),
                 size=self.batch_size)
-            self.kl_.append(step(Z_0))
-            print(self.kl_[-1])
+            self.kl_[i] = step(Z_0)
+            print(self.kl_[i])
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
+        self.W_ = W.get_value()
+        self.U_ = W.get_value()
+        self.b_ = W.get_value()
         return self
 
     def sample(self, n_samples=1):
@@ -148,15 +161,17 @@ def plot_potential_sample(Z):
 
 
 if __name__ == "__main__":
-    n_samples = 1000000  # <-- the more the better.
+    n_samples = 10000000  # <-- the more the better.
     # Z = np.random.uniform(-4, 4, size=(n_samples, 2))
     # plot_potentials()
 
     # Z = Potential(1).sample(n_samples)
     # plot_potential_sample(Z)
 
-    nf = NormalizingFlow(4, batch_size=100, n_iter=100000)
+    nf = NormalizingFlow(16, batch_size=100, n_iter=10000000)
     nf.fit(lambda Z: potential(Z, 1))
+    with open("./planar-16.pickle", "wb") as f:
+        pickle.dump(nf, f)
     plt.plot(range(len(nf.kl_)), nf.kl_)
     plt.grid(True)
     plt.show()
