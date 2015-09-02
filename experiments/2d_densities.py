@@ -17,7 +17,7 @@ def logaddexp(X, Y):
 
 
 def mvn_logpdf(X, mean, covar):
-    """Return a theano expression representing the values of the log probability
+    """Returns a theano expression representing the values of the log probability
     density function of the multivariate normal with diagonal covariance.
 
     >>> X = T.matrix("X")
@@ -91,27 +91,19 @@ class NormalizingFlow:
     def __getstate__(self):
         state = dict(vars(self))
         del state["flow_"]
-        del state["density_"]
         return state
 
     def __setstate__(self, state):
         vars(self).update(state)
 
-        mean = theano.shared(self.mean_, "mean")
-        covar = theano.shared(self.covar_, "covar")
         W = theano.shared(self.W_, "W")
         U = theano.shared(self.U_, "U")
         b = theano.shared(self.b_, "b")
 
-        Z_0, Z_K, logdet = planar_flow(W, U, b, self.K)
+        Z_0, Z_K, _logdet = planar_flow(W, U, b, self.K)
         self.flow_ = theano.function([Z_0], Z_K)
 
-        log_q = mvn_logpdf(Z_0, mean, covar) - logdet
-        self.density_ = theano.function([Z_0], T.exp(log_q))
-
     def _assemble(self, potential):
-        mean = theano.shared(as_floatX(np.zeros(self.D)), "mean")
-        covar = theano.shared(as_floatX(np.ones(self.D)), "covar")
         W = theano.shared(uniform((self.K, self.D)), "W")
         U = theano.shared(uniform((self.K, self.D)), "U")
         b = theano.shared(uniform(self.K), "b")
@@ -119,8 +111,9 @@ class NormalizingFlow:
         Z_0, Z_K, logdet = planar_flow(W, U, b, self.K)
         self.flow_ = theano.function([Z_0], Z_K)
 
+        mean = theano.shared(as_floatX(np.zeros(self.D)), "mean")
+        covar = theano.shared(as_floatX(np.ones(self.D)), "covar")
         log_q = mvn_logpdf(Z_0, mean, covar) - logdet
-        self.density_ = theano.function([Z_0], T.exp(log_q))
 
         # KL[q_K(z)||exp(-U(z))] ≅ mean(log q_K(z) + U(z)) + const(z)
         # XXX the loss is equal to KL up to an additive constant, thus the
@@ -135,11 +128,11 @@ class NormalizingFlow:
         (mean, covar, W, U, b), step = self._assemble(potential)
         self.kl_ = np.empty(self.n_iter)
         for i in range(self.n_iter):
-            Z_0 = np.random.normal(mean.get_value(), np.sqrt(covar.get_value()),
+            Z_0 = np.random.normal(mean.get_value(),
+                                   np.sqrt(covar.get_value()),
                                    size=(self.batch_size, self.D))
             self.kl_[i] = step(as_floatX(Z_0))
             if np.isnan(self.kl_[i]):
-                import pdb; pdb.set_trace()
                 raise ValueError
 
             print("{}/{}: {:8.6f}".format(i + 1, self.n_iter, self.kl_[i]))
@@ -154,13 +147,10 @@ class NormalizingFlow:
     def sample(self, n_samples=1):
         Z_0 = np.random.normal(self.mean_, np.sqrt(self.covar_),
                                size=(n_samples, self.D))
-        return self.flow_(as_floatX(Z_0))
+        return self.transform(as_floatX(Z_0))
 
     def transform(self, Z_0):
         return self.flow_(Z_0)
-
-    def score(self, Z_0):
-        return self.density_(Z_0)
 
 
 def plot_potential(Z, p, where=plt):
@@ -185,7 +175,7 @@ if __name__ == "__main__":
     potentials = [1, 2]
     ks = [8]
 
-    _fig, grid = plt.subplots(len(potentials), len(ks) + 2,
+    _fig, grid = plt.subplots(len(potentials), len(ks) + 1,
                               sharex="col", sharey="row")
     for n, row in zip(potentials, grid):
         Z = T.matrix("Z")
@@ -205,7 +195,5 @@ if __name__ == "__main__":
                     pickle.dump(nf, f)
 
             plot_sample(nf.sample(1000000), k, row[i])
-            plot_potential(Zgrid, nf.score(Zgrid), row[i + 1])
-            row[i].set_title("K = {}".format(k))
 
     plt.show()
