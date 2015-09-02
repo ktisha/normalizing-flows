@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import theano
 from lasagne.updates import rmsprop
+from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
 from theano import tensor as T
 
@@ -11,9 +12,9 @@ def mvn_logpdf(X, mean, covar):
     """Return a theano expression representing the values of the log probability
     density function of the multivariate normal with diagonal covariance.
 
-    >>> X = T.dmatrix("X")
-    >>> mean = T.dvector("mean")
-    >>> covar = T.dvector("covar")
+    >>> X = T.matrix("X")
+    >>> mean = T.vector("mean")
+    >>> covar = T.vector("covar")
     >>> f = theano.function([X, mean, covar], mvn_logpdf(X, mean, covar))
 
     >>> from scipy.stats import multivariate_normal
@@ -54,7 +55,7 @@ class Potential:
         self.n = n
 
     def __call__(self, Z):
-        Z = T.dtensor3("Z")
+        Z = T.tensor3("Z")
         return theano.function([Z], potential(Z, self.n))
 
     def plot(self, Z, where=plt):
@@ -64,7 +65,7 @@ class Potential:
 
 
 def planar_flow(W, U, b, K):
-    Z_K = Z_0 = T.dmatrix("Z_0")
+    Z_K = Z_0 = T.matrix("Z_0")
     logdet = []
     for k in range(K):
         wTu = W[k].dot(U[k])
@@ -99,12 +100,12 @@ class NormalizingFlow:
         vars(self).update(state)
 
     def _assemble(self, potential):
-        mean = theano.shared(np.zeros(self.D), "mean")
-        covar = theano.shared(np.ones(self.D), "covar")
+        mean = theano.shared(as_floatX(np.zeros(self.D)), "mean")
+        covar = theano.shared(as_floatX(np.ones(self.D)), "covar")
 
-        W = theano.shared(np.random.random((self.K, self.D)), "W")
-        U = theano.shared(np.random.random((self.K, self.D)), "U")
-        b = theano.shared(np.random.random(self.K), "b")
+        W = theano.shared(as_floatX(np.random.random((self.K, self.D))), "W")
+        U = theano.shared(as_floatX(np.random.random((self.K, self.D))), "U")
+        b = theano.shared(as_floatX(np.random.random(self.K)), "b")
 
         Z_0, Z_K, logdet = planar_flow(W, U, b, self.K)
         self.flow_ = theano.function([Z_0], Z_K)
@@ -125,10 +126,9 @@ class NormalizingFlow:
         (mean, covar, W, U, b), step = self._assemble(potential)
         self.kl_ = np.empty(self.n_iter)
         for i in range(self.n_iter):
-            Z_0 = np.random.multivariate_normal(
-                mean.get_value(), np.diag(covar.get_value()),
-                size=self.batch_size)
-            self.kl_[i] = step(Z_0)
+            Z_0 = np.random.normal(mean.get_value(), covar.get_value(),
+                                   size=(self.batch_size, self.D))
+            self.kl_[i] = step(as_floatX(Z_0))
             print(self.kl_[i])
 
         self.mean_ = mean.get_value()
@@ -139,9 +139,9 @@ class NormalizingFlow:
         return self
 
     def sample(self, n_samples=1):
-        Z_0 = np.random.multivariate_normal(
-            self.mean_, np.diag(self.covar_), size=n_samples)
-        return self.flow_(Z_0)
+        Z_0 = np.random.normal(self.mean_, self.covar_,
+                               size=(n_samples, self.D))
+        return self.flow_(as_floatX(Z_0))
 
 
 def plot_potentials(Z):
