@@ -127,8 +127,8 @@ class NormalizingFlow:
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
         self.W_ = W.get_value()
-        self.U_ = W.get_value()
-        self.b_ = W.get_value()
+        self.U_ = U.get_value()
+        self.b_ = b.get_value()
         return self
 
     def sample(self, n_samples=1):
@@ -158,8 +158,8 @@ if __name__ == "__main__":
     for n, row in enumerate(grid, 1):
         Z = T.matrix("Z")
         p = theano.function([Z], potential(Z, n))
-        plot_potential(np.random.uniform(-4, 4, size=(n_samples, 2)), p,
-                       where=row[0])
+        plot_potential(as_floatX(np.random.uniform(-4, 4, size=(n_samples, 2))),
+                       p, row[0])
 
         for i, k in enumerate([2, 8, 16], 1):
             path = "./potential_{}_k{}.pickle".format(n, k)
