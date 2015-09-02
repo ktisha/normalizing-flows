@@ -10,6 +10,7 @@ from theano import tensor as T
 
 
 def logaddexp(X, Y):
+    """Accurately computes ``log(exp(X) + exp(Y))``."""
     XY_max = T.maximum(X, Y)
     XY_min = T.minimum(X, Y)
     return XY_max + T.log1p(T.exp(XY_min - XY_max))
@@ -125,9 +126,10 @@ class NormalizingFlow:
         # XXX the loss is equal to KL up to an additive constant, thus the
         #     computed value might get negative (while KL cannot).
         kl = (log_q + potential(Z_K)).mean()
-        params = [mean, covar, W, U, b]
-        updates = rmsprop(kl, params, learning_rate=1e-4)
-        return params, theano.function([Z_0], kl, updates=updates)
+        params = [W, U, b]
+        updates = rmsprop(kl, params, learning_rate=1e-3)
+        return ([mean, covar] + params,
+                theano.function([Z_0], kl, updates=updates))
 
     def fit(self, potential):
         (mean, covar, W, U, b), step = self._assemble(potential)
@@ -206,6 +208,4 @@ if __name__ == "__main__":
             plot_potential(Zgrid, nf.score(Zgrid), row[i + 1])
             row[i].set_title("K = {}".format(k))
 
-    plt.xlim((-4, 4))
-    plt.ylim((-4, 4))
     plt.show()
