@@ -147,6 +147,8 @@ def plot_potential_sample(Z, k, where=plt):
     H = np.flipud(np.rot90(H))
     Hmasked = np.ma.masked_where(H == 0, H)
     where.pcolormesh(xedges, yedges, Hmasked)
+    where.xlim([-4, 4])
+    where.ylim([-4, 4])
     where.set_title("K = {}".format(k))
 
 
