@@ -6,6 +6,7 @@ import theano
 from lasagne.updates import rmsprop
 from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
+from scipy import integrate
 from theano import tensor as T
 
 
@@ -40,26 +41,38 @@ def mvn_logpdf(X, mean, covar):
 
 
 def uniform(size):
-    return as_floatX(np.random.uniform(-.25, .25, size=size))
+    return as_floatX(np.random.uniform(-4, 4, size=size))
 
 
-def potential(Z, n):
-    Z1, Z2 = Z[:, 0], Z[:, 1]
-    w1 = T.sin(2 * np.pi * Z1 / 4)
-    if n == 1:
-        return (.5 * T.square((Z.norm(2, axis=1) - 2) / 0.4)
-                - logaddexp(-.5 * T.square((Z1 - 2) / 0.6),
-                            -.5 * T.square((Z1 + 2) / 0.6)))
-    elif n == 2:
-        return .5 * T.square(Z2 - w1)
-    elif n == 3:
-        w2 = 3 * T.exp(-.5 * T.square((Z1 - 1) / 0.6))
-        return -logaddexp(-.5 * T.square((Z2 - w1) / 0.35),
-                          -.5 * T.square((Z2 - w1 + w2) / 0.35))
-    elif n == 4:
-        w3 = 3 / (1 + T.exp(-(Z1 - 1) / 0.3))
-        return -logaddexp(-.5 * T.square((Z2 - w1) / 0.4),
-                          -.5 * T.square((Z2 - w1 + w3) / 0.35))
+class Potential:
+    def __init__(self, n):
+        self.n = n
+
+    def __call__(self, Z):
+        Z1, Z2 = Z[:, 0], Z[:, 1]
+        w1 = T.sin(2 * np.pi * Z1 / 4)
+        if self.n == 1:
+            return (.5 * T.square((Z.norm(2, axis=1) - 2) / 0.4)
+                    - logaddexp(-.5 * T.square((Z1 - 2) / 0.6),
+                                -.5 * T.square((Z1 + 2) / 0.6)))
+        elif self.n == 2:
+            return .5 * T.square(Z2 - w1)
+        elif self.n == 3:
+            w2 = 3 * T.exp(-.5 * T.square((Z1 - 1) / 0.6))
+            return -logaddexp(-.5 * T.square((Z2 - w1) / 0.35),
+                              -.5 * T.square((Z2 - w1 + w2) / 0.35))
+        elif self.n == 4:
+            w3 = 3 / (1 + T.exp(-(Z1 - 1) / 0.3))
+            return -logaddexp(-.5 * T.square((Z2 - w1) / 0.4),
+                              -.5 * T.square((Z2 - w1 + w3) / 0.35))
+
+    def integrate(self, a, b):
+        Z = T.dmatrix("Z")
+        f = theano.function([Z], T.exp(-self(Z)))
+        estimate, _error = integrate.dblquad(
+            lambda z2, z1: f(np.array([[z1, z2]])),
+            a, b, lambda z1: a, lambda z1: b)
+        return np.log(estimate)
 
 
 def planar_flow(W, U, b, K):
@@ -119,10 +132,9 @@ class NormalizingFlow:
         # XXX the loss is equal to KL up to an additive constant, thus the
         #     computed value might get negative (while KL cannot).
         kl = (log_q + potential(Z_K)).mean()
-        params = [W, U, b]
+        params = [mean, covar, W, U, b]
         updates = rmsprop(kl, params, learning_rate=1e-3)
-        return ([mean, covar] + params,
-                theano.function([Z_0], kl, updates=updates))
+        return (params, theano.function([Z_0], kl, updates=updates))
 
     def fit(self, potential):
         (mean, covar, W, U, b), step = self._assemble(potential)
@@ -179,7 +191,7 @@ if __name__ == "__main__":
                               sharex="col", sharey="row")
     for n, row in zip(potentials, grid):
         Z = T.matrix("Z")
-        p = theano.function([Z], T.exp(-potential(Z, n)))
+        p = theano.function([Z], T.exp(-Potential(n)(Z)))
         plot_potential(Zgrid, p(Zgrid), row[0])
 
         for i, k in enumerate(ks, 1):
@@ -190,10 +202,14 @@ if __name__ == "__main__":
                     nf = pickle.load(f)
             else:
                 nf = NormalizingFlow(k, batch_size=1000, n_iter=50000)
-                nf.fit(lambda Z: potential(Z, n))
+                nf.fit(Potential(n))
+
+                log_Z = Potential(n).integrate(-4, 4)
+                print("KL {:.2f}".format(nf.kl_[-1] + log_Z))
+
                 with open(path, "wb") as f:
                     pickle.dump(nf, f)
 
-            plot_sample(nf.sample(1000000), k, row[i])
+            plot_sample(nf.sample(10000000), k, row[i])
 
     plt.show()
