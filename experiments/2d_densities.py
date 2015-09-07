@@ -81,7 +81,7 @@ def planar_flow(W, U, b, K):
     for k in range(K):
         wTu = W[k].dot(U[k])
         m_wTu = -1 + T.log1p(T.exp(wTu))
-        U_hat_k = U[k] + (m_wTu - wTu) * W[k] / W[k].norm(L=2)
+        U_hat_k = U[k] + (m_wTu - wTu) * W[k] / T.square(W[k].norm(L=2))
         tanh_k = T.tanh(W[k].dot(Z_K.T) + b[k])[:, np.newaxis]
 
         Z_K = Z_K + U_hat_k * tanh_k
