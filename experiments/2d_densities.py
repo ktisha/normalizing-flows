@@ -84,7 +84,7 @@ def planar_flow(W, U, b, K):
         U_hat_k = U[k] + (m_wTu - wTu) * W[k] / T.square(W[k].norm(L=2))
         tanh_k = T.tanh(W[k].dot(Z_K.T) + b[k])[:, np.newaxis]
 
-        Z_K = Z_K + U_hat_k * tanh_k
+        Z_K = Z_K + tanh_k.dot(U_hat_k[np.newaxis, :])
 
         # tanh'(z) = 1 - [tanh(z)]^2.
         psi_k = (1 - T.square(tanh_k)) * W[k]
