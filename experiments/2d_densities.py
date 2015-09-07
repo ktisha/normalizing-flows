@@ -56,7 +56,7 @@ class Potential:
                     - logaddexp(-.5 * T.square((Z1 - 2) / 0.6),
                                 -.5 * T.square((Z1 + 2) / 0.6)))
         elif self.n == 2:
-            return .5 * T.square(Z2 - w1)
+            return .5 * T.square((Z2 - w1)/0.4)
         elif self.n == 3:
             w2 = 3 * T.exp(-.5 * T.square((Z1 - 1) / 0.6))
             return -logaddexp(-.5 * T.square((Z2 - w1) / 0.35),
