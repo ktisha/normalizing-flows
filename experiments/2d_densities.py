@@ -167,7 +167,7 @@ class NormalizingFlow:
 
 def plot_potential(Z, p, where=plt):
     # XXX the pictures in the paper seem to have the y-axis flipped.
-    where.scatter(Z[:, 0], -Z[:, 1], c=p, s=5, edgecolor="")
+    where.scatter(Z[:, 0], Z[:, 1], c=p, s=5, edgecolor="")
 
 
 def plot_sample(Z, k, where=plt):
