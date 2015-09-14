@@ -42,23 +42,24 @@ def make_flow(k):
 
 
 if __name__ == '__main__':
-    f = make_flow(1)
+    flow_len = 4
+    f = make_flow(flow_len)
 
     Z_0 = np.random.normal(0, 1, [100000, 2])
-    W = np.random.random([2, 2])
-    U = np.random.random([2, 2])
-    b = np.random.random(2)
+    W = np.random.normal(0, 1, [flow_len, 2])
+    U = np.random.normal(0, 1, [flow_len, 2])
+    b = np.random.random(flow_len)
 
     array = [Z_0]
 
-    for m in range(-41, 41, 10):
+    for m in range(1, 4):
         array.append(f(Z_0, W*m, U, b))
 
-    for m in range(-41, 41, 10):
+    for m in range(1, 4):
         array.append(f(Z_0, W, U*m, b))
 
-    for m in range(-10, 10, 5):
-        array.append(f(Z_0, W, U*10, b*m))
+    for m in range(1, 4):
+        array.append(f(Z_0, W, U*2, b*m))
 
     plot(*array)
 
