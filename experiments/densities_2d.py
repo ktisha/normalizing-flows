@@ -18,8 +18,9 @@ def logaddexp(X, Y):
 
 
 def mvn_logpdf(X, mean, covar):
-    """Returns a theano expression representing the values of the log probability
-    density function of the multivariate normal with diagonal covariance.
+    """Returns a theano expression representing the values of the log
+    probability density function of the multivariate normal with diagonal
+    covariance.
 
     >>> X = T.matrix("X")
     >>> mean = T.vector("mean")
@@ -56,7 +57,7 @@ class Potential:
                     - logaddexp(-.5 * T.square((Z1 - 2) / 0.6),
                                 -.5 * T.square((Z1 + 2) / 0.6)))
         elif self.n == 2:
-            return .5 * T.square((Z2 - w1)/0.4)
+            return .5 * T.square((Z2 - w1) / 0.4)
         elif self.n == 3:
             w2 = 3 * T.exp(-.5 * T.square((Z1 - 1) / 0.6))
             return -logaddexp(-.5 * T.square((Z2 - w1) / 0.35),
@@ -146,8 +147,8 @@ class NormalizingFlow:
             self.kl_[i] = step(as_floatX(Z_0))
             if np.isnan(self.kl_[i]):
                 raise ValueError
-
-            print("{}/{}: {:8.6f}".format(i + 1, self.n_iter, self.kl_[i]))
+            elif i % 1000 == 0:
+                print("{}/{}: {:8.6f}".format(i + 1, self.n_iter, self.kl_[i]))
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
@@ -184,8 +185,8 @@ if __name__ == "__main__":
     Z01 = np.linspace(-4, 4, num=1000)
     Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
 
-    potentials = [1, 2]
-    ks = [8]
+    potentials = [1, 2, 3, 4]
+    ks = [32, 16, 8, 4, 2]
 
     _fig, grid = plt.subplots(len(potentials), len(ks) + 1,
                               sharex="col", sharey="row")
@@ -201,7 +202,7 @@ if __name__ == "__main__":
                 with open(path, "rb") as f:
                     nf = pickle.load(f)
             else:
-                nf = NormalizingFlow(k, batch_size=1000, n_iter=50000)
+                nf = NormalizingFlow(k, batch_size=1000, n_iter=500000)
                 nf.fit(Potential(n))
 
                 log_Z = Potential(n).integrate(-4, 4)
