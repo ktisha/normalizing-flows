@@ -95,7 +95,7 @@ def planar_flow(W, U, b, K):
     return Z_0, Z_K, logdet
 
 
-class NormalizingFlow:
+class PlanarFlow:
     def __init__(self, K, batch_size=2500, n_iter=1000):
         self.D = 2
         self.K = K
@@ -119,7 +119,7 @@ class NormalizingFlow:
 
     def _assemble(self, potential):
         W = theano.shared(uniform((self.K, self.D)), "W")
-        U = theano.shared(uniform((self.K, self.D)), "U")
+        U = theano.shared(np.zeros((self.K, self.D)), "U")
         b = theano.shared(uniform(self.K), "b")
 
         Z_0, Z_K, logdet = planar_flow(W, U, b, self.K)
@@ -202,7 +202,7 @@ if __name__ == "__main__":
                 with open(path, "rb") as f:
                     nf = pickle.load(f)
             else:
-                nf = NormalizingFlow(k, batch_size=1000, n_iter=500000)
+                nf = PlanarFlow(k, batch_size=1000, n_iter=500000)
                 nf.fit(Potential(n))
 
                 log_Z = Potential(n).integrate(-4, 4)
