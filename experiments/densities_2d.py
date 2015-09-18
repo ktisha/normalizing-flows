@@ -168,11 +168,13 @@ class PlanarFlow:
 
 def plot_potential(Z, p, where=plt):
     # XXX the pictures in the paper seem to have the y-axis flipped.
-    where.scatter(Z[:, 0], Z[:, 1], c=p, s=5, edgecolor="")
+    where.scatter(Z[:, 0], -Z[:, 1], c=p, s=5, edgecolor="")
+    where.set_xlim((-4, 4))
+    where.set_ylim((-4, 4))
 
 
 def plot_sample(Z, k, where=plt):
-    H, xedges, yedges = np.histogram2d(Z[:, 0], Z[:, 1], bins=100)
+    H, xedges, yedges = np.histogram2d(Z[:, 0], -Z[:, 1], bins=100)
     H = np.flipud(np.rot90(H))
     Hmasked = np.ma.masked_where(H == 0, H)
     where.pcolormesh(xedges, yedges, Hmasked)
