@@ -72,11 +72,27 @@ class RadialFlow:
 
         kl = (log_q + potential(Z_K)).mean()
         params = [mean, covar, z0, alpha, beta]
+
+        self.dz0_ = theano.function([Z_0], T.grad(logdet.mean(), [z0]))
+        self.dalpha_ = theano.function([Z_0], T.grad(logdet.mean(), [alpha]))
+        self.dbeta_ = theano.function([Z_0], T.grad(logdet.mean(), [beta]))
+
         updates = rmsprop(kl, params, learning_rate=1e-3)
         return (params, theano.function([Z_0], kl, updates=updates))
 
+    def _assemble_gradient(self):
+        z0 = T.matrix("z0")
+        alpha = T.vector("alpha")
+        beta = T.vector("beta")
+
+        Z_0, Z_K, logdet = radial_flow(z0, alpha, beta, self.K, self.D)
+
+        self.logdet_ = theano.function([Z_0, z0, alpha, beta], logdet.mean())
+
+
     def fit(self, potential):
         (mean, covar, z0, alpha, beta), step = self._assemble(potential)
+        self._assemble_gradient()
         self.kl_ = np.empty(self.n_iter)
         for i in range(self.n_iter):
             Z_0 = np.random.normal(mean.get_value(),
@@ -88,21 +104,24 @@ class RadialFlow:
             elif i % 1000 == 0:
                 print("{}/{}: {:8.6f}".format(i + 1, self.n_iter, self.kl_[i]))
 
-                logdet = self.logdet_(Z_0)
-                eps0 = np.random.random() / 1e10
-                eps1 = np.random.random() / 1e10
+                eps = np.random.random(self.K) / 1e10
+                eps_z0 = np.random.random([self.K, self.D]) / 1e10
 
-                f = self.flow_
+                dalpha = (self.logdet_(Z_0, z0.get_value(), alpha.get_value() + eps, beta.get_value()) -
+                                        self.logdet_(Z_0, z0.get_value(), alpha.get_value(), beta.get_value())) / eps
 
-                dz00 = (-f(Z_0) + f(Z_0 + [eps0, 0]))[:, 0]  / eps0
-                dz01 = (-f(Z_0) + f(Z_0 + [0, eps1]))[:, 0]  / eps1
+                print(self.dalpha_(Z_0), dalpha)
 
-                dz10 = (-f(Z_0) + f(Z_0 + [eps0, 0]))[:, 1]  / eps0
-                dz11 = (-f(Z_0) + f(Z_0 + [0, eps1]))[:, 1]  / eps1
+                dbeta = (self.logdet_(Z_0, z0.get_value(), alpha.get_value(), beta.get_value() + eps) -
+                                        self.logdet_(Z_0, z0.get_value(), alpha.get_value(), beta.get_value())) / eps
 
-                det = np.log(np.abs(dz00 * dz11 - dz10 * dz01)).mean()
+                print(self.dbeta_(Z_0), dbeta)
 
-                print(logdet, det)
+                dz0 = (self.logdet_(Z_0, z0.get_value() + eps_z0, alpha.get_value(), beta.get_value()) -
+                self.logdet_(Z_0, z0.get_value(), alpha.get_value(), beta.get_value())) / eps_z0
+
+                print(self.dz0_(Z_0), dz0)
+
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
