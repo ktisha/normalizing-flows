@@ -107,18 +107,22 @@ class RadialFlow:
                 eps = np.random.random(self.K) / 1e10
                 eps_z0 = np.random.random([self.K, self.D]) / 1e10
 
-                dalpha = (self.logdet_(Z_0, z0.get_value(), alpha.get_value() + eps, beta.get_value()) -
-                                        self.logdet_(Z_0, z0.get_value(), alpha.get_value(), beta.get_value())) / eps
+                z0_value = z0.get_value()
+                alpha_value = alpha.get_value()
+                beta_value = beta.get_value()
+
+                dalpha = (self.logdet_(Z_0, z0_value, alpha_value + eps, beta_value) -
+                          self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps
 
                 print(self.dalpha_(Z_0), dalpha)
 
-                dbeta = (self.logdet_(Z_0, z0.get_value(), alpha.get_value(), beta.get_value() + eps) -
-                                        self.logdet_(Z_0, z0.get_value(), alpha.get_value(), beta.get_value())) / eps
+                dbeta = (self.logdet_(Z_0, z0_value, alpha_value, beta_value + eps) -
+                         self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps
 
                 print(self.dbeta_(Z_0), dbeta)
 
-                dz0 = (self.logdet_(Z_0, z0.get_value() + eps_z0, alpha.get_value(), beta.get_value()) -
-                self.logdet_(Z_0, z0.get_value(), alpha.get_value(), beta.get_value())) / eps_z0
+                dz0 = (self.logdet_(Z_0, z0_value + eps_z0, alpha_value, beta_value) -
+                       self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps_z0
 
                 print(self.dz0_(Z_0), dz0)
 
