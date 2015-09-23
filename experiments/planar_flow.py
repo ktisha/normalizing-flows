@@ -8,7 +8,7 @@ from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
 from theano import tensor as T
 
-from densities_2d import Potential, plot_potential, plot_sample, uniform, mvn_logpdf
+from densities_2d import Potential, plot_potential, plot_sample, uniform, mvn_logpdf, Flow
 
 
 def planar_flow(W, U, b, K):
@@ -30,12 +30,9 @@ def planar_flow(W, U, b, K):
     return Z_0, Z_K, logdet
 
 
-class PlanarFlow:
+class PlanarFlow(Flow):
     def __init__(self, K, batch_size=2500, n_iter=1000):
-        self.D = 2
-        self.K = K
-        self.batch_size = batch_size
-        self.n_iter = n_iter
+        super().__init__(K, batch_size, n_iter)
 
     def __getstate__(self):
         state = dict(vars(self))
@@ -91,14 +88,6 @@ class PlanarFlow:
         self.U_ = U.get_value()
         self.b_ = b.get_value()
         return self
-
-    def sample(self, n_samples=1):
-        Z_0 = np.random.normal(self.mean_, np.sqrt(self.covar_),
-                               size=(n_samples, self.D))
-        return self.transform(as_floatX(Z_0))
-
-    def transform(self, Z_0):
-        return self.flow_(Z_0)
 
 
 if __name__ == "__main__":

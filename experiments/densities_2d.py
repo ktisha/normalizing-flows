@@ -96,3 +96,23 @@ def plot_sample(Z, k, where=plt, set_limits=True):
         where.set_ylim((-4, 4))
     where.set_title("K = {}".format(k))
 
+class Flow:
+    def __init__(self, K, batch_size=2500, n_iter=1000):
+        self.D = 2
+        self.K = K
+        self.batch_size = batch_size
+        self.n_iter = n_iter
+
+    def _assemble(self, potential):
+        raise NotImplementedError()
+
+    def fit(self, potential):
+        raise NotImplementedError()
+
+    def sample(self, n_samples=1):
+        Z_0 = np.random.normal(self.mean_, np.sqrt(self.covar_),
+                               size=(n_samples, self.D))
+        return self.transform(as_floatX(Z_0))
+
+    def transform(self, Z_0):
+        return self.flow_(Z_0)
