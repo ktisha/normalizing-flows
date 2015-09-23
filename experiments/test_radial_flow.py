@@ -2,9 +2,9 @@ from matplotlib import pyplot as plt
 import numpy as np
 import theano
 from theano import tensor as T
-from densities_2d import plot_sample
-from planar_flow import planar_flow
 
+from densities_2d import plot_sample
+from radial_flow import radial_flow
 
 def plot(*args):
     len_args = len(args)
@@ -29,32 +29,32 @@ def plot(*args):
 
 
 def make_flow(k):
-    W = T.matrix("W")
-    U = T.matrix("U")
-    b = T.vector("b")
-    Z_0, Z_K, l = planar_flow(W, U, b, k)
-    return theano.function([Z_0, W, U, b], Z_K)
+    z0 = T.matrix("z0")
+    alpha = T.vector("alpha")
+    beta = T.vector("beta")
+    Z_0, Z_K, l = radial_flow(z0, alpha, beta, k, 2)
+    return theano.function([Z_0, z0, alpha, beta], Z_K)
 
 
 if __name__ == '__main__':
-    flow_len = 4
+    flow_len = 16
     f = make_flow(flow_len)
 
     Z_0 = np.random.normal(0, 1, [100000, 2])
-    W = np.random.normal(0, 1, [flow_len, 2])
-    U = np.random.normal(0, 1, [flow_len, 2])
-    b = np.random.random(flow_len)
+    z0 = np.random.normal(2, 10, [flow_len, 2])
+    alpha = np.random.random(flow_len)
+    beta = np.random.random(flow_len)
 
     array = [Z_0]
 
-    for m in range(1, 4):
-        array.append(f(Z_0, W*m, U, b))
+    for m in range(1, 8):
+        array.append(f(Z_0, z0, alpha, beta*m))
 
-    for m in range(1, 4):
-        array.append(f(Z_0, W, U*m, b))
+    for m in range(1, 8):
+        array.append(f(Z_0, z0, alpha*m, beta))
 
-    for m in range(1, 4):
-        array.append(f(Z_0, W, U*2, b*m))
+    for m in range(1, 8):
+        array.append(f(Z_0, z0*m, alpha, beta))
 
     plot(*array)
 
