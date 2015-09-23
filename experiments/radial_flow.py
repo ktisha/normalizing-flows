@@ -20,7 +20,7 @@ def radial_flow(z0, alpha, beta, K, D):
 
     for k in range(K):
         z_difference = Z_K - z0[k]
-        r = z_difference.norm(L=1, axis=1)  # the same as T.sqrt(T.square(z_difference).sum(axis=1))
+        r = T.sqrt(T.square(z_difference).sum(axis=1))
 
         h_beta = beta_hat[k] / (alpha[k] + r)
         hh = - z_difference / (r * T.square(alpha[k] + r))[:,None]
@@ -68,6 +68,8 @@ class RadialFlow:
         covar = theano.shared(as_floatX(np.ones(self.D)), "covar")
         log_q = mvn_logpdf(Z_0, mean, covar) - logdet
 
+        self.logdet_ = theano.function([Z_0], logdet.mean())
+
         kl = (log_q + potential(Z_K)).mean()
         params = [mean, covar, z0, alpha, beta]
         updates = rmsprop(kl, params, learning_rate=1e-3)
@@ -85,6 +87,22 @@ class RadialFlow:
                 raise ValueError
             elif i % 1000 == 0:
                 print("{}/{}: {:8.6f}".format(i + 1, self.n_iter, self.kl_[i]))
+
+                logdet = self.logdet_(Z_0)
+                eps0 = np.random.random() / 1e10
+                eps1 = np.random.random() / 1e10
+
+                f = self.flow_
+
+                dz00 = (-f(Z_0) + f(Z_0 + [eps0, 0]))[:, 0]  / eps0
+                dz01 = (-f(Z_0) + f(Z_0 + [0, eps1]))[:, 0]  / eps1
+
+                dz10 = (-f(Z_0) + f(Z_0 + [eps0, 0]))[:, 1]  / eps0
+                dz11 = (-f(Z_0) + f(Z_0 + [0, eps1]))[:, 1]  / eps1
+
+                det = np.log(np.abs(dz00 * dz11 - dz10 * dz01)).mean()
+
+                print(logdet, det)
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
