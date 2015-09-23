@@ -147,7 +147,7 @@ if __name__ == "__main__":
         plot_potential(Zgrid, p(Zgrid), row[0])
 
         for i, k in enumerate(ks, 1):
-            path = "./potential_{}_k{}.pickle".format(n, k)
+            path = "./radial_{}_k{}.pickle".format(n, k)
             print(path)
             if os.path.exists(path):
                 with open(path, "rb") as f:
