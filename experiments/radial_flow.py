@@ -1,14 +1,12 @@
 import os.path
 import pickle
-
 import numpy as np
 import theano
 from lasagne.updates import rmsprop
 from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
 from theano import tensor as T
-
-from densities_2d import mvn_logpdf, Potential, plot_potential, plot_sample, Flow
+from densities_2d import mvn_logpdf, Potential, plot_potential, plot_sample, Flow, uniform
 
 
 def radial_flow(z0, alpha, beta, K, D):
@@ -23,10 +21,10 @@ def radial_flow(z0, alpha, beta, K, D):
         r = T.sqrt(T.square(z_difference).sum(axis=1))
 
         h_beta = beta_hat[k] / (alpha[k] + r)
-        hh = - z_difference / (r * T.square(alpha[k] + r))[:,None]
+        hh = - z_difference / (r * T.square(alpha[k] + r))[:, None]
 
         # here we assumed that the last term is \beta * h' * (z-z_0) instead of h' * r
-        df = T.power((1 + h_beta), D-1) * (1 + h_beta + (beta_hat[k] * hh * z_difference).sum(axis=1))
+        df = T.power((1 + h_beta), D - 1) * (1 + h_beta + (beta_hat[k] * hh * z_difference).sum(axis=1))
 
         logdet = .5 * T.log(T.square(df)) + logdet
         Z_K = Z_K + h_beta[:, None] * z_difference
@@ -34,7 +32,7 @@ def radial_flow(z0, alpha, beta, K, D):
     return Z_0, Z_K, logdet
 
 
-class RadialFlow (Flow):
+class RadialFlow(Flow):
     def __init__(self, K, batch_size=2500, n_iter=1000):
         super().__init__(K, batch_size, n_iter)
 
@@ -86,7 +84,6 @@ class RadialFlow (Flow):
 
         self.logdet_ = theano.function([Z_0, z0, alpha, beta], logdet.mean())
 
-
     def fit(self, potential):
         (mean, covar, z0, alpha, beta), step = self._assemble(potential)
         self._assemble_gradient()
@@ -102,7 +99,7 @@ class RadialFlow (Flow):
                 print("{}/{}: {:8.6f}".format(i + 1, self.n_iter, self.kl_[i]))
 
                 eps = np.random.random(self.K) / 1e10
-                eps_z0 = np.random.random([self.K, self.D]) / 1e10
+                eps_z0 = np.random.random() / 1e10
 
                 z0_value = z0.get_value()
                 alpha_value = alpha.get_value()
@@ -118,11 +115,13 @@ class RadialFlow (Flow):
 
                 print(self.dbeta_(Z_0), dbeta)
 
-                dz0 = (self.logdet_(Z_0, z0_value + eps_z0, alpha_value, beta_value) -
-                       self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps_z0
+                dz00 = (self.logdet_(Z_0, z0_value + [eps_z0, 0], alpha_value, beta_value) -
+                        self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps_z0
 
-                print(self.dz0_(Z_0), dz0)
+                dz01 = (self.logdet_(Z_0, z0_value + [0, eps_z0], alpha_value, beta_value) -
+                        self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps_z0
 
+                print(self.dz0_(Z_0), dz00, dz01)
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
