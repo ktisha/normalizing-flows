@@ -67,19 +67,13 @@ class RadialFlow(Flow):
         covar = theano.shared(as_floatX(np.ones(self.D)), "covar")
         log_q = mvn_logpdf(Z_0, mean, covar) - logdet
 
-        self.logdet_ = theano.function([Z_0], logdet.mean())
-
         kl = (log_q + potential(Z_K)).mean()
         params = [mean, covar, z0, alpha, beta]
-
-        self.dz0_ = theano.function([Z_0], T.grad(logdet.mean(), [z0]))
-        self.dalpha_ = theano.function([Z_0], T.grad(logdet.mean(), [alpha]))
-        self.dbeta_ = theano.function([Z_0], T.grad(logdet.mean(), [beta]))
 
         updates = rmsprop(kl, params, learning_rate=1e-3)
         return (params, theano.function([Z_0], kl, updates=updates))
 
-    def _assemble_gradient(self):
+    def _assemble_jacobian(self):
         z0 = T.matrix("z0")
         alpha = T.vector("alpha")
         beta = T.vector("beta")
@@ -89,12 +83,11 @@ class RadialFlow(Flow):
         self.logdet_ = theano.function([Z_0, z0, alpha, beta], logdet)
         self.jacobian_ = theano.function(
             [Z_0, z0, alpha, beta],
-            T.jacobian(Z_K.mean(axis=0), Z_0))
+            T.jacobian(Z_K.sum(axis=0), Z_0))
 
     def fit(self, potential):
-        np.random.seed(42)
         (mean, covar, z0, alpha, beta), step = self._assemble(potential)
-        self._assemble_gradient()
+        self._assemble_jacobian()
         self.kl_ = np.empty(self.n_iter)
         for i in range(self.n_iter):
             Z_0 = np.random.normal(mean.get_value(),
