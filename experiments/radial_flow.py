@@ -1,12 +1,15 @@
 import os.path
 import pickle
+
 import numpy as np
 import theano
 from lasagne.updates import rmsprop
 from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
 from theano import tensor as T
-from densities_2d import mvn_logpdf, Potential, plot_potential, plot_sample, Flow, uniform
+
+from densities_2d import mvn_logpdf, Potential, plot_potential, plot_sample, \
+     Flow, uniform
 
 
 def radial_flow(z0, alpha, beta, K, D):
@@ -24,7 +27,8 @@ def radial_flow(z0, alpha, beta, K, D):
         hh = - z_difference / (r * T.square(alpha[k] + r))[:, None]
 
         # here we assumed that the last term is \beta * h' * (z-z_0) instead of h' * r
-        df = T.power((1 + h_beta), D - 1) * (1 + h_beta + (beta_hat[k] * hh * z_difference).sum(axis=1))
+        df = (T.power((1 + h_beta), D - 1) *
+              (1 + h_beta + beta_hat[k] * (hh * z_difference).sum(axis=1)))
 
         logdet = .5 * T.log(T.square(df)) + logdet
         Z_K = Z_K + h_beta[:, None] * z_difference
@@ -82,9 +86,13 @@ class RadialFlow(Flow):
 
         Z_0, Z_K, logdet = radial_flow(z0, alpha, beta, self.K, self.D)
 
-        self.logdet_ = theano.function([Z_0, z0, alpha, beta], logdet.mean())
+        self.logdet_ = theano.function([Z_0, z0, alpha, beta], logdet)
+        self.jacobian_ = theano.function(
+            [Z_0, z0, alpha, beta],
+            T.jacobian(Z_K.mean(axis=0), Z_0))
 
     def fit(self, potential):
+        np.random.seed(42)
         (mean, covar, z0, alpha, beta), step = self._assemble(potential)
         self._assemble_gradient()
         self.kl_ = np.empty(self.n_iter)
@@ -105,23 +113,16 @@ class RadialFlow(Flow):
                 alpha_value = alpha.get_value()
                 beta_value = beta.get_value()
 
-                dalpha = (self.logdet_(Z_0, z0_value, alpha_value + eps, beta_value) -
-                          self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps
+                print(self.logdet_(Z_0, z0_value, alpha_value, beta_value))
 
-                print(self.dalpha_(Z_0), dalpha)
-
-                dbeta = (self.logdet_(Z_0, z0_value, alpha_value, beta_value + eps) -
-                         self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps
-
-                print(self.dbeta_(Z_0), dbeta)
-
-                dz00 = (self.logdet_(Z_0, z0_value + [eps_z0, 0], alpha_value, beta_value) -
-                        self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps_z0
-
-                dz01 = (self.logdet_(Z_0, z0_value + [0, eps_z0], alpha_value, beta_value) -
-                        self.logdet_(Z_0, z0_value, alpha_value, beta_value)) / eps_z0
-
-                print(self.dz0_(Z_0), dz00, dz01)
+                # XXX passing Z_0 to jacobian_ directly yields incorrect
+                # results. I wonder why ...
+                J = np.empty(self.batch_size)
+                for k, Z_0k in enumerate(Z_0):
+                    Jk = self.jacobian_([Z_0k], z0_value,
+                                        alpha_value, beta_value)
+                    _sign, J[k] = np.linalg.slogdet(*np.rollaxis(Jk, axis=1))
+                print(J)
 
         self.mean_ = mean.get_value()
         self.covar_ = covar.get_value()
@@ -136,7 +137,7 @@ if __name__ == "__main__":
     Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
 
     potentials = [1, 2]
-    ks = [1]
+    ks = [2]
 
     _fig, grid = plt.subplots(len(potentials), len(ks) + 1,
                               sharex="col", sharey="row")
@@ -152,7 +153,7 @@ if __name__ == "__main__":
                 with open(path, "rb") as f:
                     nf = pickle.load(f)
             else:
-                nf = RadialFlow(k, batch_size=1000, n_iter=50000)
+                nf = RadialFlow(k, batch_size=3, n_iter=50000)
                 nf.fit(Potential(n))
 
                 log_Z = Potential(n).integrate(-4, 4)
