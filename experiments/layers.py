@@ -1,0 +1,50 @@
+import numpy as np
+import theano.tensor as T
+from lasagne.init import Uniform, Constant
+from lasagne.layers import Layer, MergeLayer
+from theano.tensor.shared_randomstreams import RandomStreams
+
+
+class PlanarFlowLayer(Layer):
+    def __init__(self, incoming, W=Uniform(-1, 1), U=Constant(),
+                 b=Uniform(-1, 1), **kwargs):
+        super().__init__(incoming, **kwargs)
+
+        n_inputs = self.input_shape[1]
+        self.W = self.add_param(W, (n_inputs, ), "W")
+        self.U = self.add_param(U, (n_inputs, ), "U")
+        self.b = self.add_param(b, (), "b")
+
+    def get_output_shape_for(self, input_shape):
+        return input_shape
+
+    def get_output_for(self, input, **kwargs):
+        Z = input
+
+        wTu = self.W.dot(self.U)
+        m_wTu = -1 + T.log1p(T.exp(wTu))
+        U_hat = self.U + (m_wTu - wTu) * self.W / T.square(self.W.norm(L=2))
+        tanh = T.tanh(self.W.dot(Z.T) + self.b)[:, np.newaxis]
+
+        f_Z = Z + tanh.dot(U_hat[np.newaxis, :])
+
+        # tanh'(z) = 1 - [tanh(z)]^2.
+        psi = (1 - T.square(tanh)) * self.W
+        # we use .5 log(x^2) instead of log|x|.
+        logdet = .5 * T.log(T.square(1 + psi.dot(U_hat)))
+        return f_Z, logdet
+
+
+class GaussianLayer(MergeLayer):
+    def __init__(self, mu, log_covar, **kwargs):
+        super().__init__([mu, log_covar], **kwargs)
+
+        self._srng = RandomStreams()
+
+    def get_output_shape_for(self, input_shapes):
+        return input_shapes[0]
+
+    def get_output_for(self, input, **kwargs):
+        mu, log_covar = input
+        eps = self._srng.normal(mu.shape)
+        return mu + T.exp(log_covar) * eps

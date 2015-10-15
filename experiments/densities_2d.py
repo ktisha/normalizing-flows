@@ -5,36 +5,13 @@ from matplotlib import pyplot as plt
 from scipy import integrate
 from theano import tensor as T
 
+from .utils import mvn_logpdf
 
 def logaddexp(X, Y):
     """Accurately computes ``log(exp(X) + exp(Y))``."""
     XY_max = T.maximum(X, Y)
     XY_min = T.minimum(X, Y)
     return XY_max + T.log1p(T.exp(XY_min - XY_max))
-
-
-def mvn_logpdf(X, mean, covar):
-    """Returns a theano expression representing the values of the log
-    probability density function of the multivariate normal with diagonal
-    covariance.
-
-    >>> X = T.matrix("X")
-    >>> mean = T.vector("mean")
-    >>> covar = T.vector("covar")
-    >>> f = theano.function([X, mean, covar], mvn_logpdf(X, mean, covar))
-
-    >>> from scipy.stats import multivariate_normal
-    >>> X = np.array([[-2, 0], [1, -4]])
-    >>> mean, covar = np.array([-1, 1]), np.array([.4, .2])
-    >>> np.allclose(multivariate_normal.logpdf(X, mean, np.diag(covar)),
-    ...             f(X, mean, covar))
-    True
-    """
-    # XXX the cast is necessary because shapes are int64.
-    N = X.shape[1].astype(X.dtype)
-    return -.5 * (N * T.log(2 * np.pi)
-                  + T.log(covar).sum()
-                  + (T.square(X - mean) / covar).sum(axis=1))
 
 
 def uniform(size):
