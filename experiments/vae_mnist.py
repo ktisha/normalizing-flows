@@ -63,7 +63,7 @@ def main(batch_size=500, n_epochs=500):
         X_var, deterministic=False
     )
 
-    # l(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
+    # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     log_likelihood = (
         mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
         + mvn_std_logpdf(z_var)
@@ -72,8 +72,7 @@ def main(batch_size=500, n_epochs=500):
 
     params = get_all_params(concat([net["x_mu"], net["x_log_covar"]]),
                             trainable=True)
-    updates = rmsprop(-log_likelihood, params, learning_rate=0.01)
-
+    updates = rmsprop(-log_likelihood, params, learning_rate=1e-3)
     train_nll = theano.function([X_var], -log_likelihood, updates=updates)
 
     print("Starting training...")
