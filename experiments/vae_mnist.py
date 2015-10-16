@@ -1,6 +1,5 @@
 import time
 
-import numpy as np
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
@@ -10,10 +9,10 @@ from lasagne.updates import rmsprop
 
 from .datasets import load_mnist_dataset
 from .layers import GaussianNoiseLayer
-from .utils import mvn_log_logpdf, mvn_std_logpdf
+from .utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
 
 
-def build_model(batch_size, num_features, num_latent=50, num_hidden=500):
+def build_model(batch_size, num_features, num_latent=100, num_hidden=500):
     net = {}
 
     # q(z|x)
@@ -39,13 +38,6 @@ def build_model(batch_size, num_features, num_latent=50, num_hidden=500):
     net["x_log_covar"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
                                     nonlinearity=identity)
     return net
-
-
-def iter_minibatches(X, y, batch_size):
-    assert len(X) == len(y)
-    for i in range(len(X) // batch_size + 1):
-        indices = np.random.choice(len(X), replace=False, size=batch_size)
-        yield X[indices], y[indices]
 
 
 def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var):

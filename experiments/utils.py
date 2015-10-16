@@ -35,3 +35,10 @@ def mvn_log_logpdf(X, mean, log_covar):
 
 def mvn_std_logpdf(X):
     return -.5 * (T.log(2 * np.pi) + T.square(X)).sum(axis=1)
+
+
+def iter_minibatches(X, y, batch_size):
+    assert len(X) == len(y)
+    for i in range(len(X) // batch_size + 1):
+        indices = np.random.choice(len(X), replace=False, size=batch_size)
+        yield X[indices], y[indices]
