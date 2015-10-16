@@ -9,7 +9,7 @@ from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import rmsprop
 
 from .datasets import load_mnist_dataset
-from .layers import GaussianLayer
+from .layers import GaussianNoiseLayer
 from .utils import mvn_log_logpdf, mvn_std_logpdf
 
 
@@ -27,7 +27,7 @@ def build_model(batch_size, num_features, num_latent=50, num_hidden=500):
     net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
                                     nonlinearity=identity)
 
-    net["z"] = GaussianLayer(net["z_mu"], net["z_log_covar"])
+    net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
 
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z"], num_units=num_hidden,
@@ -48,6 +48,15 @@ def iter_minibatches(X, y, batch_size):
         yield X[indices], y[indices]
 
 
+def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var):
+    # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
+    return (
+        mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+        + mvn_std_logpdf(z_var)
+        - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var)
+    ).mean()
+
+
 def main(batch_size=500, n_epochs=500):
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_mnist_dataset()
@@ -57,23 +66,26 @@ def main(batch_size=500, n_epochs=500):
     X_var = T.matrix("X")
     net = build_model(batch_size, num_features)
 
-    vars = ["z", "z_mu", "z_log_covar", "x_mu", "x_log_covar"]
-    z_var, z_mu_var, z_log_covar_var, x_mu_var, x_log_covar_var = get_output(
+    vars = ["x_mu", "x_log_covar", "z", "z_mu", "z_log_covar"]
+    x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var = get_output(
         [net[var] for var in vars],
         X_var, deterministic=False
     )
+    elbo_train = elbo(X_var, x_mu_var, x_log_covar_var,
+                      z_var, z_mu_var, z_log_covar_var)
 
-    # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    log_likelihood = (
-        mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
-        + mvn_std_logpdf(z_var)
-        - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var)
-    ).mean()
+    x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var = get_output(
+        [net[var] for var in vars],
+        X_var, deterministic=True
+    )
+    elbo_val = elbo(X_var, x_mu_var, x_log_covar_var,
+                    z_var, z_mu_var, z_log_covar_var)
 
     params = get_all_params(concat([net["x_mu"], net["x_log_covar"]]),
                             trainable=True)
-    updates = rmsprop(-log_likelihood, params, learning_rate=1e-3)
-    train_nll = theano.function([X_var], -log_likelihood, updates=updates)
+    updates = rmsprop(-elbo_train, params, learning_rate=1e-3)
+    train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
+    val_nelbo = theano.function([X_var], -elbo_val)
 
     print("Starting training...")
     for epoch in range(n_epochs):
@@ -82,20 +94,18 @@ def main(batch_size=500, n_epochs=500):
         train_err, train_batches = 0, 0
         for Xb, yb in iter_minibatches(X_train, y_train,
                                        batch_size=batch_size):
-            train_err += train_nll(Xb)
+            train_err += train_nelbo(Xb)
             train_batches += 1
 
-        # This won't work with stochastic layers. See MNIST example
-        # in Lasagne sources.
-        # val_err, val_batches = 0, 0
-        # for Xb, yb in iter_minibatches(X_val, y_val, batch_size=500):
-        #     val_err += train_nll(Xb, yb)
-        #     val_batches += 1
+        val_err, val_batches = 0, 0
+        for Xb, yb in iter_minibatches(X_val, y_val, batch_size=batch_size):
+            val_err += val_nelbo(Xb)
+            val_batches += 1
 
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, n_epochs, time.perf_counter() - start_time))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-        # print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
 
 
 if __name__ == "__main__":

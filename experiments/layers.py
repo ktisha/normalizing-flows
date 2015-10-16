@@ -2,6 +2,7 @@ import numpy as np
 import theano.tensor as T
 from lasagne.init import Uniform, Constant
 from lasagne.layers import Layer, MergeLayer
+from lasagne.random import get_rng
 from theano.tensor.shared_randomstreams import RandomStreams
 
 
@@ -35,16 +36,20 @@ class PlanarFlowLayer(Layer):
         return f_Z, logdet
 
 
-class GaussianLayer(MergeLayer):
+class GaussianNoiseLayer(MergeLayer):
     def __init__(self, mu, log_covar, **kwargs):
         super().__init__([mu, log_covar], **kwargs)
 
-        self._srng = RandomStreams()
+        # Shameless plug from ``lasagne.layers.GaussianNoiseLayer``.
+        self._srng = RandomStreams(get_rng().randint(1, 2147462579))
 
     def get_output_shape_for(self, input_shapes):
         return input_shapes[0]
 
-    def get_output_for(self, input, **kwargs):
+    def get_output_for(self, input, deterministic=False, **kwargs):
         mu, log_covar = input
-        eps = self._srng.normal(mu.shape)
-        return mu + T.exp(log_covar) * eps
+        if deterministic:
+            return mu
+        else:
+            eps = self._srng.normal(mu.shape)
+            return mu + T.exp(log_covar) * eps
