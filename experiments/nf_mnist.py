@@ -1,11 +1,13 @@
 import time
+import pickle
 
+import pandas as pd
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
-    get_all_params, concat
+    get_all_params, get_all_param_values, concat
 from lasagne.nonlinearities import rectify, identity
-from lasagne.updates import rmsprop
+from lasagne.updates import adam
 
 from .layers import PlanarFlowLayer, ListIndexLayer
 from .datasets import load_mnist_dataset
@@ -13,25 +15,26 @@ from .layers import GaussianNoiseLayer
 from .utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
 
 
-def build_model(batch_size, num_features, num_latent=100, num_hidden=500, nflows=2):
+def build_model(batch_size, num_features, num_latent=100, num_hidden=500,
+                num_flows=2):
     net = {}
 
     # q(z|x)
     net["enc_input"] = InputLayer((batch_size, num_features))
     net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=num_hidden,
                                     nonlinearity=rectify)
-    # net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=num_hidden,
-    #                                 nonlinearity=rectify)
-    net["z_mu"] = DenseLayer(net["enc_hidden1"], num_units=num_latent,
+    net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=num_hidden,
+                                    nonlinearity=rectify)
+    net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
                              nonlinearity=identity)
-    net["z_log_covar"] = DenseLayer(net["enc_hidden1"], num_units=num_latent,
+    net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
                                     nonlinearity=identity)
 
     net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
 
     z = net["z"]
     logdet = []
-    for nflow in range(nflows):
+    for _ in range(num_flows):
         flow_layer = PlanarFlowLayer(z)
         z = ListIndexLayer(flow_layer, 0)
         logdet.append(ListIndexLayer(flow_layer, 1))
@@ -42,11 +45,11 @@ def build_model(batch_size, num_features, num_latent=100, num_hidden=500, nflows
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=num_hidden,
                                     nonlinearity=rectify)
-    # net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=num_hidden,
-    #                                 nonlinearity=rectify)
-    net["x_mu"] = DenseLayer(net["dec_hidden1"], num_units=num_features,
+    net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=num_hidden,
+                                    nonlinearity=rectify)
+    net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
                              nonlinearity=identity)
-    net["x_log_covar"] = DenseLayer(net["dec_hidden1"], num_units=num_features,
+    net["x_log_covar"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
                                     nonlinearity=identity)
     return net
 
@@ -62,11 +65,11 @@ def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var):
 
 def elbo_nf(X_var, x_mu_var, x_log_covar_var, z_0_var, z_k_var, logdet_var):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    return ( mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+    return (
+        mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
         + mvn_std_logpdf(z_k_var)
         - mvn_std_logpdf(z_0_var) + logdet_var
     ).mean()
-
 
 
 def main(batch_size=500, n_epochs=500):
@@ -79,28 +82,29 @@ def main(batch_size=500, n_epochs=500):
     net = build_model(batch_size, num_features)
 
     vars = ["x_mu", "x_log_covar", "z", "z_k"]
-
     x_mu_var, x_log_covar_var, z_0_var, z_k_var, *logdet_var = get_output(
         [net[var] for var in vars] + net["logdet"],
         X_var, deterministic=False
     )
     elbo_train = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                      z_0_var, z_k_var, sum(logdet_var))
+                         z_0_var, z_k_var, sum(logdet_var))
 
     x_mu_var, x_log_covar_var, z_0_var, z_k_var, *logdet_var = get_output(
         [net[var] for var in vars] + net["logdet"],
         X_var, deterministic=True
     )
     elbo_val = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                      z_0_var, z_k_var, sum(logdet_var))
+                       z_0_var, z_k_var, sum(logdet_var))
 
     params = get_all_params(concat([net["x_mu"], net["x_log_covar"]]),
                             trainable=True)
-    updates = rmsprop(-elbo_train, params, learning_rate=1e-3)
+    updates = adam(-elbo_train, params)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 
     print("Starting training...")
+    train_errs = []
+    val_errs = []
     for epoch in range(n_epochs):
         start_time = time.perf_counter()
 
@@ -119,7 +123,19 @@ def main(batch_size=500, n_epochs=500):
             epoch + 1, n_epochs, time.perf_counter() - start_time))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+        train_errs.append(train_err)
+        val_errs.append(val_err)
+
+    pd.DataFrame.from_dict({
+        "train_err": train_errs,
+        "val_err": val_errs
+    }).to_csv("./nf_mnist_err.csv", index=False)
+
+    all_param_values = get_all_param_values(
+        concat([net["x_mu"], net["x_log_covar"]]))
+    with open("./nf_mnist.pickle", "wb") as handle:
+        pickle.dump(all_param_values, handle)
 
 
 if __name__ == "__main__":
-    main()
+    main(n_epochs=1)
