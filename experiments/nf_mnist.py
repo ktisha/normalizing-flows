@@ -10,7 +10,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
 from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import adam
 
-from .layers import PlanarFlowLayer, ListIndexLayer
+from .layers import PlanarFlowLayer, IndexLayer
 from .datasets import load_mnist_dataset
 from .layers import GaussianNoiseLayer
 from .utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
@@ -36,7 +36,7 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     logdet = []
     for _ in range(num_flows):
         flow_layer = PlanarFlowLayer(z)
-        z = ListIndexLayer(flow_layer, 0)
+        z = IndexLayer(flow_layer, 0)
         logdet.append(ListIndexLayer(flow_layer, 1))
 
     net["z_k"] = z

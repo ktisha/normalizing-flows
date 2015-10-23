@@ -54,23 +54,10 @@ class GaussianNoiseLayer(MergeLayer):
             eps = self._srng.normal(mu.shape)
             return mu + T.exp(log_covar) * eps
 
-class ListIndexLayer(Layer):
-    """
-    If a layer outputs a list we use this layer to fetch a specific index
-    in the list.
-    In general you should not expect this to work because it violates some
-    of the assumptions Lasagne currently makes.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or a tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    index : int
-        The list index to be selected.
-    """
+class IndexLayer(Layer):
     def __init__(self, incoming, index, **kwargs):
-        super(ListIndexLayer, self).__init__(incoming, **kwargs)
+        super().__init__(incoming, **kwargs)
+
         self.index = index
 
     def get_output_for(self, input, **kwargs):
