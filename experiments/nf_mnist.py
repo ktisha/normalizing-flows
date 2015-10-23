@@ -118,7 +118,7 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
         train_errs.append(train_err)
         val_errs.append(val_err)
 
-    prefix = "nf_mnist_L{}_F{}".format(num_latent, num_flows)
+    prefix = "nf_mnist_L{}_H{}_F{}".format(num_latent, num_hidden, num_flows)
     pd.DataFrame.from_dict({
         "train_err": train_errs,
         "val_err": val_errs
