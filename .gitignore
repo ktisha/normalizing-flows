@@ -31,4 +31,5 @@ pip-delete-this-directory.txt
 docs/_build/
 
 *.pickle
+*.csv
 experiments/data
