@@ -119,8 +119,7 @@ def main(num_latent, num_hidden, batch_size, num_epochs):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Learn NF-VAE from MNIST data")
+    parser = argparse.ArgumentParser(description="Learn VAE from MNIST data")
     parser.add_argument("-L", dest="num_latent", type=int, default=100)
     parser.add_argument("-H", dest="num_hidden", type=int, default=500)
     parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
