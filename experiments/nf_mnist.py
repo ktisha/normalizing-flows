@@ -37,7 +37,7 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     for _ in range(num_flows):
         flow_layer = PlanarFlowLayer(z)
         z = IndexLayer(flow_layer, 0)
-        logdet.append(ListIndexLayer(flow_layer, 1))
+        logdet.append(IndexLayer(flow_layer, 1))
 
     net["z_k"] = z
     net["logdet"] = logdet
