@@ -1,12 +1,14 @@
 import argparse
 import pickle
+import re
 import time
 
 import pandas as pd
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
-    get_all_params, get_all_param_values, concat
+    get_all_params, get_all_param_values, set_all_param_values, \
+    concat
 from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import rmsprop
 
@@ -50,6 +52,23 @@ def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var):
         + mvn_std_logpdf(z_var)
         - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var)
     ).mean()
+
+
+def sample(path):
+    print("Loading data...")
+    X_train, *_rest = load_mnist_dataset()
+    num_features = X_train.shape[1]
+
+    [chunk] = re.findall(r"vae_mnist_L(\d+)_H(\d+)", path)
+    num_latent, num_hidden = map(int, chunk)
+
+    print("Building model and compiling functions...")
+    net = build_model(1, num_features, num_latent, num_hidden)
+    with open(path, "rb") as handle:
+        set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
+                             pickle.load(handle))
+
+    # Now sample!
 
 
 def main(num_latent, num_hidden, batch_size, num_epochs):
