@@ -2,7 +2,6 @@ import argparse
 import pickle
 import re
 import time
-
 import pandas as pd
 import theano
 import theano.tensor as T
@@ -11,15 +10,16 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     concat
 from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import rmsprop
-
-from .datasets import load_mnist_dataset
-from .layers import GaussianNoiseLayer
-from .utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
+from datasets import load_mnist_dataset
+from layers import GaussianNoiseLayer
+from utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
+import numpy as np
+from scipy.stats import norm
+import matplotlib.pyplot as plt
 
 
 def build_model(batch_size, num_features, num_latent, num_hidden):
     net = {}
-
     # q(z|x)
     net["enc_input"] = InputLayer((batch_size, num_features))
     net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=num_hidden,
@@ -68,7 +68,22 @@ def sample(path):
         set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
                              pickle.load(handle))
 
-    # Now sample!
+    z_var = T.vector()
+    decode_x = get_output(net["x_mu"], {net["z"]: z_var})
+    decode_fn = theano.function([z_var], decode_x)
+
+    figure = plt.figure()
+
+    index = 0
+    for (x, y), val in np.ndenumerate(np.zeros((20, 20))):
+        z = np.asarray([norm.ppf(0.05 * x), norm.ppf(0.05 * y)], dtype=theano.config.floatX)
+        figure.add_subplot(20, 20, index)
+        image = decode_fn(z)[0].reshape((28, 28))
+        plt.axis('off')
+        plt.imshow(image)
+        index += 1
+
+    plt.savefig("vae.png")
 
 
 def main(num_latent, num_hidden, batch_size, num_epochs):
@@ -145,4 +160,5 @@ if __name__ == "__main__":
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
 
     args = parser.parse_args()
-    main(**vars(args))
+    sample("vae_mnist_L2_H500.pickle")
+    # main(**vars(args))
