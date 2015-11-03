@@ -1,12 +1,16 @@
+import re
 import argparse
 import time
 import pickle
 
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import numpy as np
 import pandas as pd
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
-    get_all_params, get_all_param_values, concat
+    get_all_params, get_all_param_values, set_all_param_values, concat
 from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import adam
 
@@ -130,6 +134,66 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
         pickle.dump(all_param_values, handle)
 
 
+def load_model(path):
+    print("Loading data...")
+    X_train, *_rest = load_mnist_dataset()
+    num_features = X_train.shape[1]
+
+    [chunk] = re.findall(r"nf_mnist_L(\d+)_H(\d+)_F(\d+)", path)
+    num_latent, num_hidden, num_flows = map(int, chunk)
+
+    print("Building model and compiling functions...")
+    net = build_model(1, num_features, num_latent, num_hidden, num_flows)
+    with open(path, "rb") as handle:
+        set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
+                             pickle.load(handle))
+    return net
+
+
+def plot_manifold(path):
+    net = load_model(path)
+    z_var = T.vector()
+    decoder = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
+
+    figure = plt.figure()
+
+    index = 0
+    for (x, y), val in np.ndenumerate(np.zeros((16, 16))):
+        z = np.asarray([norm.ppf(0.05 * x), norm.ppf(0.05 * y)],
+                       dtype=theano.config.floatX)
+        figure.add_subplot(16, 16, index)
+        image = decoder(z).reshape((28, 28))
+        plt.axis('off')
+        plt.imshow(image, cmap=cm.Greys)
+        index += 1
+
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig("nf_manifold.png")
+
+
+def sample(path):
+    net = load_model(path)
+    z_var = T.vector()
+    z_mu = theano.function(
+        [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
+    z_covar = theano.function(
+        [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
+
+    figure = plt.figure()
+
+    n_samples = 256
+    z = np.random.normal(size=(n_samples, 2)).astype(theano.config.floatX)
+    for i, z_i in enumerate(z):
+        mu, covar = z_mu(z_i), z_covar(z_i)
+        x = np.random.normal(mu, covar)
+        figure.add_subplot(16, 16, i)
+        plt.axis('off')
+        plt.imshow(x.reshape((28, 28)), cmap=cm.Greys)
+
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig("nf_sample.png")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Learn NF-VAE from MNIST data")
@@ -140,4 +204,6 @@ if __name__ == "__main__":
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
 
     args = parser.parse_args()
-    main(**vars(args))
+    path = "nf_mnist_L2_H500_F2.pickle"
+    sample(path)
+    #main(**vars(args))
