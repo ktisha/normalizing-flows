@@ -2,6 +2,10 @@ import argparse
 import pickle
 import re
 import time
+
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import numpy as np
 import pandas as pd
 import theano
 import theano.tensor as T
@@ -10,12 +14,11 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     concat
 from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import rmsprop
-from datasets import load_mnist_dataset
-from layers import GaussianNoiseLayer
-from utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
-import numpy as np
 from scipy.stats import norm
-import matplotlib.pyplot as plt
+
+from .datasets import load_mnist_dataset
+from .layers import GaussianNoiseLayer
+from .utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
 
 
 def build_model(batch_size, num_features, num_latent, num_hidden):
@@ -54,7 +57,7 @@ def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var):
     ).mean()
 
 
-def sample(path):
+def load_model(path):
     print("Loading data...")
     X_train, *_rest = load_mnist_dataset()
     num_features = X_train.shape[1]
@@ -67,23 +70,51 @@ def sample(path):
     with open(path, "rb") as handle:
         set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
                              pickle.load(handle))
+    return net
 
+
+def plot_manifold(path):
+    net = load_model(path)
     z_var = T.vector()
-    decode_x = get_output(net["x_mu"], {net["z"]: z_var})
-    decode_fn = theano.function([z_var], decode_x)
+    decoder = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
 
     figure = plt.figure()
 
     index = 0
-    for (x, y), val in np.ndenumerate(np.zeros((20, 20))):
-        z = np.asarray([norm.ppf(0.05 * x), norm.ppf(0.05 * y)], dtype=theano.config.floatX)
-        figure.add_subplot(20, 20, index)
-        image = decode_fn(z)[0].reshape((28, 28))
+    for (x, y), val in np.ndenumerate(np.zeros((16, 16))):
+        z = np.asarray([norm.ppf(0.05 * x), norm.ppf(0.05 * y)],
+                       dtype=theano.config.floatX)
+        figure.add_subplot(16, 16, index)
+        image = decoder(z).reshape((28, 28))
         plt.axis('off')
-        plt.imshow(image)
+        plt.imshow(image, cmap=cm.Greys)
         index += 1
 
-    plt.savefig("vae.png")
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig("vae_manifold.png")
+
+
+def sample(path):
+    net = load_model(path)
+    z_var = T.vector()
+    z_mu = theano.function(
+        [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
+    z_covar = theano.function(
+        [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
+
+    figure = plt.figure()
+
+    n_samples = 256
+    z = np.random.normal(size=(n_samples, 2)).astype(theano.config.floatX)
+    for i, z_i in enumerate(z):
+        mu, covar = z_mu(z_i), z_covar(z_i)
+        x = np.random.normal(mu, covar)
+        figure.add_subplot(16, 16, i)
+        plt.axis('off')
+        plt.imshow(x.reshape((28, 28)), cmap=cm.Greys)
+
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig("vae_sample.png")
 
 
 def main(num_latent, num_hidden, batch_size, num_epochs):
@@ -160,5 +191,6 @@ if __name__ == "__main__":
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
 
     args = parser.parse_args()
-    sample("vae_mnist_L2_H500.pickle")
+    path = "vae_mnist_L2_H500.pickle"
+    sample(path)
     # main(**vars(args))
