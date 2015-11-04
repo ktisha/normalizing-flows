@@ -25,9 +25,9 @@ class PlanarFlowLayer(Layer):
         wTu = self.W.dot(self.U)
         m_wTu = -1 + T.log1p(T.exp(wTu))
         U_hat = self.U + (m_wTu - wTu) * self.W / T.square(self.W.norm(L=2))
-        tanh = T.tanh(self.W.dot(Z.T) + self.b)[:, np.newaxis]
+        tanh = T.tanh(self.W.dot(Z.T) + self.b)
 
-        f_Z = Z + tanh.dot(U_hat[np.newaxis, :])
+        f_Z = Z + tanh.dot(U_hat)
 
         # tanh'(z) = 1 - [tanh(z)]^2.
         psi = (1 - T.square(tanh)) * self.W
