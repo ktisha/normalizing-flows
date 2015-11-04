@@ -13,6 +13,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, concat
 from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import adam
+from scipy.stats import norm
 
 from .layers import PlanarFlowLayer, IndexLayer
 from .datasets import load_mnist_dataset
