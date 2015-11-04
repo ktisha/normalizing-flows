@@ -183,6 +183,17 @@ def main(num_latent, num_hidden, batch_size, num_epochs):
         pickle.dump(all_param_values, handle)
 
 
+def plot_errors(filename, plot_name='train_val_errors.png'):
+    errors = np.genfromtxt(filename, delimiter=',')
+    fig, ax = plt.subplots()
+    ax.set_ylim([-100000, 20000])
+    train_errors = errors[1:, 0]
+    val_errors = errors[1:, 1]
+
+    ax.scatter(range(len(train_errors)), train_errors, s=4, color="blue")
+    ax.scatter(range(len(train_errors)), val_errors, s=4, color="red")
+    fig.savefig(plot_name)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Learn VAE from MNIST data")
     parser.add_argument("-L", dest="num_latent", type=int, default=100)
