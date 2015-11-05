@@ -1,7 +1,8 @@
-import re
 import argparse
-import time
 import pickle
+import re
+import time
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -140,12 +141,12 @@ def load_model(path):
     X_train, *_rest = load_mnist_dataset()
     num_features = X_train.shape[1]
 
-    [chunk] = re.findall(r"nf_mnist_L(\d+)_H(\d+)_F(\d+)", path)
+    [chunk] = re.findall(r"nf_mnist_L(\d+)_H(\d+)_F(\d+)", str(path))
     num_latent, num_hidden, num_flows = map(int, chunk)
 
     print("Building model and compiling functions...")
     net = build_model(1, num_features, num_latent, num_hidden, num_flows)
-    with open(path, "rb") as handle:
+    with path.open("rb") as handle:
         set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
                              pickle.load(handle))
     return net
@@ -169,10 +170,10 @@ def plot_manifold(path):
         index += 1
 
     plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig("nf_manifold.png")
+    plt.savefig(str(path.with_name(path.stem + "_manifold.png")))
 
 
-def sample(path):
+def plot_sample(path):
     net = load_model(path)
     z_var = T.vector()
     z_mu = theano.function(
@@ -188,11 +189,11 @@ def sample(path):
         mu, covar = z_mu(z_i), z_covar(z_i)
         x = np.random.normal(mu, covar)
         figure.add_subplot(16, 16, i)
-        plt.axis('off')
+        plt.axis("off")
         plt.imshow(x.reshape((28, 28)), cmap=cm.Greys)
 
     plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig("nf_sample.png")
+    plt.savefig(str(path.with_name(path.stem + "_sample.png")))
 
 
 if __name__ == "__main__":
@@ -205,6 +206,6 @@ if __name__ == "__main__":
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
 
     args = parser.parse_args()
-    path = "nf_mnist_L2_H500_F2.pickle"
-    sample(path)
+    path = Path("nf_mnist_L2_H500_F2.pickle")
+    plot_sample(path)
     #main(**vars(args))
