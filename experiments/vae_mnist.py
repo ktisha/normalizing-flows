@@ -15,7 +15,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     concat
 from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import rmsprop
-from scipy.stats import norm
+from lasagne.utils import floatX as as_floatX
 
 from .datasets import load_mnist_dataset
 from .layers import GaussianNoiseLayer
@@ -81,15 +81,14 @@ def plot_manifold(path):
 
     figure = plt.figure()
 
-    index = 0
-    for (x, y), val in np.ndenumerate(np.zeros((16, 16))):
-        z = np.asarray([norm.ppf(0.05 * x), norm.ppf(0.05 * y)],
-                       dtype=theano.config.floatX)
-        figure.add_subplot(16, 16, index)
-        image = decoder(z).reshape((28, 28))
-        plt.axis("off")
+    Z01 = np.linspace(-1, 1, num=16)
+    Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
+
+    for (i, z_i) in enumerate(Zgrid, 1):
+        figure.add_subplot(16, 16, i)
+        image = decoder(z_i).reshape((28, 28))
+        plt.axis('off')
         plt.imshow(image, cmap=cm.Greys)
-        index += 1
 
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.savefig(str(path.with_name(path.stem + "_manifold.png")))
@@ -107,7 +106,7 @@ def plot_sample(path):
 
     n_samples = 256
     z = np.random.normal(size=(n_samples, 2)).astype(theano.config.floatX)
-    for i, z_i in enumerate(z):
+    for i, z_i in enumerate(z, 1):
         mu, covar = z_mu(z_i), z_covar(z_i)
         x = np.random.normal(mu, covar)
         figure.add_subplot(16, 16, i)
@@ -205,5 +204,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     path = Path("vae_mnist_L2_H500.pickle")
-    plot_sample(path)
+    plot_manifold(path)
     # main(**vars(args))
