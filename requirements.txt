@@ -3,3 +3,4 @@ numpy
 matplotlib
 scipy
 Lasagne==0.1
+pandas
