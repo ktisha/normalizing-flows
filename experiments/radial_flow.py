@@ -3,12 +3,12 @@ import pickle
 
 import numpy as np
 import theano
-from lasagne.updates import rmsprop
+from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
 from theano import tensor as T
 
-from densities_2d import mvn_logpdf, Potential, plot_potential, plot_sample, \
+from .densities_2d import mvn_logpdf, Potential, plot_potential, plot_sample, \
      Flow, uniform
 
 
@@ -70,7 +70,7 @@ class RadialFlow(Flow):
         kl = (log_q + potential(Z_K)).mean()
         params = [mean, covar, z0, alpha, beta]
 
-        updates = rmsprop(kl, params, learning_rate=1e-3)
+        updates = adam(kl, params)
         return (params, theano.function([Z_0], kl, updates=updates))
 
     def _assemble_jacobian(self):
@@ -98,9 +98,6 @@ class RadialFlow(Flow):
                 raise ValueError
             elif i % 1000 == 0:
                 print("{}/{}: {:8.6f}".format(i + 1, self.n_iter, self.kl_[i]))
-
-                eps = np.random.random(self.K) / 1e10
-                eps_z0 = np.random.random() / 1e10
 
                 z0_value = z0.get_value()
                 alpha_value = alpha.get_value()
