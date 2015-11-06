@@ -154,7 +154,7 @@ def load_model(path):
 
 def plot_manifold(path):
     net = load_model(path)
-    z_var = T.vector()
+    z_var = T.matrix()
     decoder = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
 
     figure = plt.figure()
@@ -175,7 +175,7 @@ def plot_manifold(path):
 
 def plot_sample(path):
     net = load_model(path)
-    z_var = T.vector()
+    z_var = T.matrix()
     z_mu = theano.function(
         [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
     z_covar = theano.function(
@@ -186,7 +186,7 @@ def plot_sample(path):
     n_samples = 256
     z = np.random.normal(size=(n_samples, 2)).astype(theano.config.floatX)
     for i, z_i in enumerate(z):
-        mu, covar = z_mu(z_i), z_covar(z_i)
+        mu, covar = z_mu(np.array([z_i])), z_covar(np.array([z_i]))
         x = np.random.normal(mu, covar)
         figure.add_subplot(16, 16, i)
         plt.axis("off")
@@ -207,5 +207,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     path = Path("nf_mnist_L2_H500_F2.pickle")
-    plot_sample(path)
-    #main(**vars(args))
+    # plot_sample(path)
+    main(**vars(args))
