@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from theano import tensor as T
 
 from .densities_2d import mvn_logpdf, Potential, plot_potential, plot_sample, \
-     Flow, uniform
+     Flow
 
 
 def radial_flow(z0, alpha, beta, K, D):
