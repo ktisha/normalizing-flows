@@ -8,7 +8,7 @@
 \usepackage{mathtools}  %% for \underbrace
 
 
-\title{\large{Normalizing flows}}
+\title{\large{Variational Auto-Encoder. Normalizing flows}}
 
 \begin{document}
 
@@ -20,7 +20,7 @@
 \textcolor{darkred}{Idea}: Learn a mapping from some latent variable $z$
 to a complicated distribution on $x$.
 
-$$p(x) = \int{p(x, z) dz}, \qquad\text{where}\qquad p(x, z) = p(x|z)p(z)$$
+$$p(x) = \int{p(x, z) dz} \qquad\text{where}\qquad p(x, z) = p(x|z)p(z)$$
 $$p(z) = \text{something simple}  \qquad  p(x|z) = g(z)$$
 \end{frame}
 
