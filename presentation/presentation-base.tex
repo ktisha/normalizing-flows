@@ -1,0 +1,65 @@
+\PassOptionsToPackage{obeyspaces}{url}
+
+\usetheme{Pittsburgh}
+\usecolortheme{beaver}
+
+\newenvironment{stopperenv}{\only{\setbeamercolor{local structure}{fg=darkred}}}{}
+
+\setbeamercolor{frametitle}{fg=black,bg=white}
+\setbeamerfont{frametitle}{size=\Large}
+\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{frametitle continuation}{(\insertcontinuationcount)}
+\setbeamertemplate{caption}{\insertcaption}
+\setbeamertemplate{enumerate items}[default]
+\setbeamertemplate{frametitle}{\hfill\insertframetitle\vskip-6pt\hrulefill}
+
+\setbeamercovered{dynamic} % overlays not yet revealed will faintly appear
+\beamertemplatenavigationsymbolsempty
+
+\usepackage{fontspec}
+\setmainfont{PT Serif}
+\setsansfont{PT Sans}
+\setmonofont[Ligatures=NoCommon]{PT Mono}
+\defaultfontfeatures{Ligatures=TeX}
+
+% sans serif for headings
+\setbeamerfont*{block title}{family=\sffamily,series=\bfseries}
+
+%\usepackage{microtype}
+
+
+\newcommand{\theme}[1]{%
+  \centering\fontsize{36pt}{1em}\color{darkred}{\selectfont{#1}}
+}
+
+\usepackage{polyglossia}
+\setdefaultlanguage{english}
+\usepackage{csquotes}
+
+\usepackage[normalem]{ulem}
+
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks=true,
+    linkcolor=darkred,
+    urlcolor=darkred,
+    citecolor=darkred
+}
+
+\makeatletter
+\let\@mycite\@cite
+\def\@cite#1#2{{\hypersetup{linkcolor=darkred}[{#1\if@tempswa , #2\fi}]}}
+\makeatother
+
+\usepackage{caption}
+\captionsetup[figure]{labelformat=empty}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\newcommand{\op}[1]{\operatorname{#1}}
+
+\author{S. Lebedev, E. Tuzova}
+\date{}
