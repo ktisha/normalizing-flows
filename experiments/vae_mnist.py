@@ -186,8 +186,9 @@ def main(num_latent, num_hidden, batch_size, num_epochs):
         pickle.dump(all_param_values, handle)
 
 
-def plot_errors(filename, plot_name='train_val_errors.png'):
-    errors = np.genfromtxt(filename, delimiter=',')
+def plot_errors(path):
+    plot_name=str(path.with_name(path.stem + "_train_val_errors.png"))
+    errors = np.genfromtxt(str(path), delimiter=',')
     fig, ax = plt.subplots()
     ax.set_ylim([-100000, 20000])
     train_errors = errors[1:, 0]
