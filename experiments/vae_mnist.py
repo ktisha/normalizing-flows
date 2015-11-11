@@ -194,8 +194,9 @@ def plot_errors(path):
     train_errors = errors[1:, 0]
     val_errors = errors[1:, 1]
 
-    ax.scatter(range(len(train_errors)), train_errors, s=4, color="blue")
-    ax.scatter(range(len(train_errors)), val_errors, s=4, color="red")
+    ax.scatter(range(len(train_errors)), train_errors, s=4, color="blue", label="train error")
+    ax.scatter(range(len(train_errors)), val_errors, s=4, color="red", label="test error")
+    plt.legend()
     fig.savefig(plot_name)
 
 
