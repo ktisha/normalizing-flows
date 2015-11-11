@@ -105,7 +105,10 @@ def plot_sample(path):
     figure = plt.figure()
 
     n_samples = 256
-    z = np.random.normal(size=(n_samples, 2)).astype(theano.config.floatX)
+    [chunk] = re.findall(r"vae_mnist_L(\d+)_H(\d+)", str(path))
+    num_latent, _ = map(int, chunk)
+
+    z = np.random.normal(size=(n_samples, num_latent)).astype(theano.config.floatX)
     for i, z_i in enumerate(z, 1):
         mu, covar = z_mu(z_i), z_covar(z_i)
         x = np.random.normal(mu, covar)
@@ -203,6 +206,6 @@ if __name__ == "__main__":
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
 
     args = parser.parse_args()
-    path = Path("vae_mnist_L2_H500.pickle")
-    plot_manifold(path)
+    path = Path("vae_mnist_L8_H500.pickle")
+    plot_sample(path)
     # main(**vars(args))
