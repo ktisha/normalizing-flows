@@ -1,14 +1,14 @@
 import numpy as np
 import theano.tensor as T
-from lasagne.init import Uniform, Constant
+from lasagne.init import Uniform, Constant, Normal
 from lasagne.layers import Layer, MergeLayer
 from lasagne.random import get_rng
 from theano.tensor.shared_randomstreams import RandomStreams
 
 
 class PlanarFlowLayer(Layer):
-    def __init__(self, incoming, W=Uniform(-1, 1), U=Constant(),
-                 b=Uniform(-1, 1), **kwargs):
+    def __init__(self, incoming, W=Normal(), U=Constant(), b=Normal(),
+                 **kwargs):
         super().__init__(incoming, **kwargs)
 
         n_inputs = self.input_shape[1]
@@ -53,6 +53,7 @@ class GaussianNoiseLayer(MergeLayer):
         else:
             eps = self._srng.normal(mu.shape)
             return mu + T.exp(log_covar) * eps
+
 
 class IndexLayer(Layer):
     def __init__(self, incoming, index, **kwargs):
