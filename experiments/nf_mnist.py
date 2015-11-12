@@ -60,11 +60,12 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     return net
 
 
-def elbo_nf(X_var, x_mu_var, x_log_covar_var, z_0_var, z_k_var, logdet_var):
+def elbo_nf(X_var, x_mu_var, x_log_covar_var, z_0_var, z_k_var, logdet_var,
+            beta_t):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return (
-        mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
-        + mvn_std_logpdf(z_k_var)
+        beta_t * (mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+                  + mvn_std_logpdf(z_k_var))
         - mvn_std_logpdf(z_0_var) + logdet_var
     ).mean()
 
@@ -76,6 +77,7 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
 
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
+    beta_var = T.scalar("beta_t")  # Inverse temperature.
     net = build_model(batch_size, num_features, num_latent, num_hidden,
                       num_flows)
 
@@ -85,20 +87,21 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
         X_var, deterministic=False
     )
     elbo_train = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                         z_0_var, z_k_var, sum(logdet_var))
+                         z_0_var, z_k_var, sum(logdet_var), beta_var)
 
     x_mu_var, x_log_covar_var, z_0_var, z_k_var, *logdet_var = get_output(
         [net[var] for var in vars] + net["logdet"],
         X_var, deterministic=True
     )
     elbo_val = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                       z_0_var, z_k_var, sum(logdet_var))
+                       z_0_var, z_k_var, sum(logdet_var), beta_var)
 
     params = get_all_params(concat([net["x_mu"], net["x_log_covar"]]),
                             trainable=True)
     updates = adam(-elbo_train, params)
-    train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
-    val_nelbo = theano.function([X_var], -elbo_val)
+    train_nelbo = theano.function([X_var, beta_var], -elbo_train,
+                                  updates=updates)
+    val_nelbo = theano.function([X_var], -elbo_val, givens={beta_var: 1.0})
 
     print("Starting training...")
     train_errs = []
@@ -109,7 +112,8 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
         train_err, train_batches = 0, 0
         for Xb, yb in iter_minibatches(X_train, y_train,
                                        batch_size=batch_size):
-            train_err += train_nelbo(Xb)
+            beta = min(1, 0.01 + float(epoch) / num_epochs)
+            train_err += train_nelbo(Xb, beta)
             train_batches += 1
 
         val_err, val_batches = 0, 0
