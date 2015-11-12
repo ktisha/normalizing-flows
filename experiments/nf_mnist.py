@@ -124,6 +124,11 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
         train_errs.append(train_err)
         val_errs.append(val_err)
 
+        threshold = np.mean(val_errs[:100])
+        if len(val_errs) >= 250 and val_err > threshold:
+            print("Stopped early {} > {}!".format(val_err, threshold))
+            break
+
     prefix = "nf_mnist_L{}_H{}_F{}".format(num_latent, num_hidden, num_flows)
     pd.DataFrame.from_dict({
         "train_err": train_errs,
@@ -204,7 +209,7 @@ if __name__ == "__main__":
     parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
 
+    # path = Path("nf_mnist_L2_H500_F8.pickle")
+    # plot_manifold(path)
     args = parser.parse_args()
-    path = Path("nf_mnist_L2_H500_F2.pickle")
-    plot_manifold(path)
-    # main(**vars(args))
+    main(**vars(args))

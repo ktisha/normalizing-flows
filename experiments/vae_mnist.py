@@ -174,6 +174,10 @@ def main(num_latent, num_hidden, batch_size, num_epochs):
         train_errs.append(train_err)
         val_errs.append(val_err)
 
+        if len(val_errs) >= 250 and val_err > np.mean(val_errs[:100]):
+            print("Stopped early!")
+            break
+
     prefix = "vae_mnist_L{}_H{}".format(num_latent, num_hidden)
     pd.DataFrame.from_dict({
         "train_err": train_errs,
@@ -207,7 +211,7 @@ if __name__ == "__main__":
     parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
 
+    # path = Path("vae_mnist_L2_H500.pickle")
+    # plot_manifold(path)
     args = parser.parse_args()
-    path = Path("vae_mnist_L8_H500.pickle")
-    plot_sample(path)
-    # main(**vars(args))
+    main(**vars(args))
