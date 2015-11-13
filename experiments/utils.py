@@ -39,6 +39,10 @@ def mvn_std_logpdf(X):
 
 def iter_minibatches(X, y, batch_size):
     assert len(X) == len(y)
+    indices = np.arange(len(X))
+    np.random.shuffle(indices)
     for i in range(len(X) // batch_size + 1):
-        indices = np.random.choice(len(X), replace=False, size=batch_size)
-        yield X[indices], y[indices]
+        lo = i * batch_size
+        hi = (i + 1) * batch_size
+        batch = indices[lo:hi]
+        yield X[batch], y[batch]
