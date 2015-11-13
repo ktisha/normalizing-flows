@@ -10,8 +10,9 @@ import numpy as np
 import pandas as pd
 import theano
 import theano.tensor as T
-from lasagne.layers import InputLayer, DenseLayer, get_output, \
-    get_all_params, get_all_param_values, set_all_param_values, concat
+from lasagne.layers import InputLayer, DenseLayer, FeaturePoolLayer, \
+    get_output, get_all_params, get_all_param_values, \
+    set_all_param_values, concat
 from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
@@ -22,15 +23,19 @@ from .layers import PlanarFlowLayer, IndexLayer
 from .utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
 
 
+maxout = FeaturePoolLayer
+
+
 def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     net = {}
+
+    pool_size = num_hidden // 100
 
     # q(z|x)
     net["enc_input"] = InputLayer((batch_size, num_features))
     net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=num_hidden,
                                     nonlinearity=rectify)
-    net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=num_hidden,
-                                    nonlinearity=rectify)
+    net["enc_hidden2"] = maxout(net["enc_hidden1"], pool_size)
     net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
                              nonlinearity=identity)
     net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
@@ -51,8 +56,7 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=num_hidden,
                                     nonlinearity=rectify)
-    net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=num_hidden,
-                                    nonlinearity=rectify)
+    net["dec_hidden2"] = maxout(net["dec_hidden1"], pool_size)
     net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
                              nonlinearity=identity)
     net["x_log_covar"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
