@@ -4,6 +4,7 @@ from lasagne.init import Uniform, Constant, Normal
 from lasagne.layers import Layer, MergeLayer
 from lasagne.random import get_rng
 from theano.tensor.shared_randomstreams import RandomStreams
+from theano.tensor.nnet import softplus
 
 
 class PlanarFlowLayer(Layer):
@@ -23,7 +24,7 @@ class PlanarFlowLayer(Layer):
         Z = input
 
         wTu = self.W.dot(self.U)
-        m_wTu = -1 + T.log1p(T.exp(wTu))
+        m_wTu = -1 + softplus(wTu)
         U_hat = self.U + (m_wTu - wTu) * self.W / T.square(self.W.norm(L=2))
         tanh = T.tanh(self.W.dot(Z.T) + self.b)[:, np.newaxis]
 
