@@ -105,7 +105,8 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
     updates = adam(-elbo_train, params)
     train_nelbo = theano.function([X_var, beta_var], -elbo_train,
                                   updates=updates)
-    val_nelbo = theano.function([X_var], -elbo_val, givens={beta_var: 1.0})
+    val_nelbo = theano.function([X_var], -elbo_val,
+                                givens={beta_var: as_floatX(1)})
 
     print("Starting training...")
     train_errs = []
