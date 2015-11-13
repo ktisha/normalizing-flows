@@ -32,8 +32,7 @@ class PlanarFlowLayer(Layer):
 
         # tanh'(z) = 1 - [tanh(z)]^2.
         psi = (1 - T.square(tanh)) * self.W
-        # we use .5 log(x^2) instead of log|x|.
-        logdet = .5 * T.log(T.square(1 + psi.dot(U_hat)))
+        logdet = T.log(abs(1 + psi.dot(U_hat)))
         return f_Z, logdet
 
 
