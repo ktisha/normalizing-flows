@@ -115,9 +115,11 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
         start_time = time.perf_counter()
 
         train_err, train_batches = 0, 0
+        # Causes ELBO to go to infinity. Should investigate further.
+        # beta = min(1, 0.01 + float(epoch) / num_epochs)
+        beta = 1
         for Xb, yb in iter_minibatches(X_train, y_train,
                                        batch_size=batch_size):
-            beta = min(1, 0.01 + float(epoch) / num_epochs)
             train_err += train_nelbo(Xb, beta)
             train_batches += 1
 

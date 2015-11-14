@@ -41,7 +41,7 @@ def iter_minibatches(X, y, batch_size):
     assert len(X) == len(y)
     indices = np.arange(len(X))
     np.random.shuffle(indices)
-    for i in range(len(X) // batch_size + 1):
+    for i in range(int(np.ceil(len(X) / batch_size))):
         lo = i * batch_size
         hi = (i + 1) * batch_size
         batch = indices[lo:hi]
