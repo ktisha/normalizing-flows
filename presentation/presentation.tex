@@ -86,25 +86,52 @@ for a choice of parameters $theta$
 
 % 7
 \begin{frame}[fragile]{Mean field}
-todo 
-% в явном виде нам q(z ) не нужна
+  todo 
+  % в явном виде нам q(z ) не нужна
 \end{frame}
 
+% 8
 \begin{frame}[fragile]{AEVB}
-% везде нейросети
-% переход к minibatch
+  % везде нейросети
+  % переход к minibatch
 todo
 \end{frame}
 
+% 9
+\begin{frame}[fragile]{Standart Monte-Carlo ELBO}
+%  \textcolor{darkred}{Problem}: Efficient computation of $\nabla_{\phi} \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)] $\\
+%  ~\\
+  $\nabla_{\phi} \mathbb{E}_{q_{\phi}} [f(z)] = \mathbb{E}_{q_{\phi}(z)} \left[ f(z) \nabla_{\phi} 
+  \log q_{\phi}(z) \right] \simeq \frac{1}{L} \sum\limits_{l=1}^L f(z) \nabla_{\phi} \log q_{\phi}(z^{(l)})$\\
+  ~\\
+  where $z^{(l)} \sim q_{\phi}(z|x)$\\
+  ~\\
+  \textcolor{darkred}{Problem}: Exhibits high variance
+\end{frame}
+
+% 10
 \begin{frame}[fragile]{Reparametrization trick}
+  \textcolor{darkred}{Idea}: Alternative method for generating samples from $q_{\phi}(z|x)$
+  ~\\
+  \begin{enumerate}
+    \item $z \sim q_{\phi}(z|x)~-$ conditional distribution    
+    \item Express $z$ as deterministic variable $z = g_{\phi}(\varepsilon, x)$\\
+      where $\varepsilon$ is an auxiliary variable. $\varepsilon \sim p(\varepsilon)$
+  \end{enumerate}
+~\\
+  $\mathbb{E}_{q_{\phi}}[f(z)] = \mathbb{E}_{p_{\varepsilon}} \left[ f(g_{\phi}(\varepsilon, x)) \right] \simeq 
+  \frac{1}{L} \sum\limits_{l=1}^L f(g_{\phi}(\varepsilon^{(l)}, x))$
+\end{frame}
 
-% в явном виде сформулировать проблему градиента от матожидания
-\begin{itemize}
-  \item $q_\phi(z|x) = \mathcal{N}(z; \mu_z(x), \sigma_z(x))$
-  \item Parametrize $z$ as $z = \mu_z(x) + \sigma_z(x)\varepsilon_z$ where $\varepsilon_z = \mathcal{N}(0, 1)$ 
-\end{itemize}
-
-% почему хорошо? переписать нижнюю оценку
+% 11
+\begin{frame}[fragile]{Reparametrization trick. Gaussian case}
+  \begin{enumerate}    
+    \item $q_\phi(z|x) = \mathcal{N}(z; \mu, \sigma^2)$
+    \item $z = \mu + \sigma\varepsilon$ ~~ where $\varepsilon \sim \mathcal{N}(0, 1)$ 
+  \end{enumerate}
+  ~\\
+  $\nabla_{\phi} \mathbb{E}_{q_{\phi}(z)} [f_{\theta}(z)] \Leftrightarrow 
+  \mathbb{E}_{\mathcal{N}(\varepsilon| 0, 1)} [\nabla_{\phi} f_{\theta} (\mu + \sigma \varepsilon)]$
 \end{frame}
 
 % слайд про алгоритм
