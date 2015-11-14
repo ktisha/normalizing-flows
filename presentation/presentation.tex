@@ -52,26 +52,39 @@ for a choice of parameters $theta$
   \end{enumerate}
 \end{frame}
 
+%5
 \begin{frame}[fragile]{Variational inference}
+  Introduce parametric model $q_{\phi}(z|x)$ with variational parameters $\phi$\\
+  ~\\
+  \textcolor{darkred}{Idea}: Construct estimator of the variational lower bound which we can optimize jointly 
+  w.r.t. $\phi$ and $\theta$\\
+  ~\\
+  Pro:
   \begin{itemize}
     \item Stochastic optimization
     \item Convergence
   \end{itemize}
+  
 \end{frame}
 
-
-% 5
+% 6
 \begin{frame}[fragile]{Variational lower bound}
 	\begin{align*} 
-		\log {p_\theta (x)} &= \log \int {p_\theta (x|z) p(z) dz} \\
-		&= \log \int{ \frac{q_\phi (z|x)}{q_\phi (z|x)} p_\theta (x|z) p(z) dz} \\
-		&\ge -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p(z)] + \mathbb{E}_q [\log p_\theta (x|z)]
+		\log {p_\theta (x)} &= \log \int {p_\theta (x|z) p_\theta(z) dz} \\
+		&= \log \int{ \frac{q_\phi (z|x)}{q_\phi (z|x)} p_\theta (x|z) p_{\theta}(z) dz} \\
+		&\ge -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p_{\theta}(z)] + \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)]
 	\end{align*} 
-% какое у нас семейство q(z|x)
+
+  \begin{itemize}
+    \item $q(z|x)$ is not necessarily factorial
+    \item Parameters $\phi$ are not computed from some closed-form expectation
+  \end{itemize}
+
+% \tiny \textcolor{gray}{Used Jensen's inequality}
 
 \end{frame}
 
-
+% 7
 \begin{frame}[fragile]{Mean field}
 todo 
 % в явном виде нам q(z ) не нужна
