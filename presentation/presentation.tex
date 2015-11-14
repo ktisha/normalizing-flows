@@ -4,45 +4,52 @@
 
 \input{presentation-base}
 
-\usepackage{subcaption}
-\usepackage{mathtools}  %% for \underbrace
-
-
 \title{\large{Variational Auto-Encoder. Normalizing flows}}
 
 \begin{document}
 
+% 1
 \begin{frame}[plain,noframenumbering]
   \maketitle
 \end{frame}
 
-\begin{frame}[fragile]{Latent variable generative models}
-\textcolor{darkred}{Idea}: Learn a mapping from some latent variable $z$
-to a complicated distribution on $x$.
-
-$$p(x) = \int{p(x, z) dz} \qquad\text{where}\qquad p(x, z) = p(x|z)p(z)$$
-$$p(z) = \text{something simple}  \qquad  p(x|z) = g(z)$$
+% 2
+\begin{frame}[fragile]{Continuous latent variable model}
+%  $X = \left\{ x^{(i)}\right\}_{i=1}^N~-$ dataset\\
+  $x~-$ observed variables\\
+  $z~-$ continuous latent variables\\
+  $\theta~-$ model parameters\\
+  $\phi~-$ variational parameters\\
+  $p_{\theta}(x, z)~-$ joint probability density function\\
+%  ~\\
+%  \textcolor{darkred}{Goal}: Learn parameters $\theta$
+	
+  \begin{figure}[htbp]
+    \includegraphics[height=110pt, keepaspectratio = true]{images/model}   
+  \end{figure}
+  \tiny \textcolor{gray} {http://arxiv.org/pdf/1312.6114v10.pdf}
 \end{frame}
 
-
-\begin{frame}[fragile]{Bayesian inference}
-todo
-\end{frame}
-
-
+% 3
 \begin{frame}[fragile]{Practical notes}
-  \begin{itemize}
-    \item Intractability
-    \item Large dataset
-  \end{itemize}
+	\textcolor{darkred}{Problems}: 
+	\begin{enumerate}
+	  \item Intractable posterior $p_{\theta}(z|x) = \frac{p_{\theta}(x|z) p_{\theta}(z)}{p_{\theta(x)}}$\\
+	  \item Intractable marginal likelihood $p_{\theta}(x) = \int {p_{\theta}(z) p_{\theta}(x|z) dz}$
+	  \item Integrals for any reasonable mean-field VB algorithm are intractable
+	  \item Large dataset, so batch optimization is too costly
+  \end{enumerate}	 
+	~\\
 \end{frame}
 
-\begin{frame}[fragile]{Solutions}
-todo
-\end{frame}
-
-\begin{frame}[fragile]{Solution problems}
-todo
+% 4
+\begin{frame}[fragile]{Goals}
+  \begin{enumerate}
+    \item Efficient approximate ML or MAP estimation for the parameters $\theta$
+    \item Efficient approximate posterior inference of the latent variable $z$ given an observed value $x$
+for a choice of parameters $theta$
+    \item Efficient approximate marginal inference of the variable $x$ 
+  \end{enumerate}
 \end{frame}
 
 \begin{frame}[fragile]{Variational inference}
@@ -53,36 +60,52 @@ todo
 \end{frame}
 
 
+% 5
 \begin{frame}[fragile]{Variational lower bound}
-\begin{align*} 
-\log {p_\theta (x)} &= \log \int {p_\theta (x|z) p(z) dz} \\
-&= \log \int{ \frac{q_\phi (z|x)}{q_\phi (z|x)} p_\theta (x|z) p(z) dz} \\
-&= -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p(z)] + \mathbb{E}_q [\log p_\theta (x|z)]
-\end{align*} 
+	\begin{align*} 
+		\log {p_\theta (x)} &= \log \int {p_\theta (x|z) p(z) dz} \\
+		&= \log \int{ \frac{q_\phi (z|x)}{q_\phi (z|x)} p_\theta (x|z) p(z) dz} \\
+		&\ge -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p(z)] + \mathbb{E}_q [\log p_\theta (x|z)]
+	\end{align*} 
+% какое у нас семейство q(z|x)
 
 \end{frame}
 
-\begin{frame}[fragile]{Variational Auto-Encoder}
+
+\begin{frame}[fragile]{Mean field}
+todo 
+% в явном виде нам q(z ) не нужна
+\end{frame}
+
+\begin{frame}[fragile]{AEVB}
+% везде нейросети
+% переход к minibatch
 todo
 \end{frame}
+
+\begin{frame}[fragile]{Reparametrization trick}
+
+% в явном виде сформулировать проблему градиента от матожидания
+\begin{itemize}
+  \item $q_\phi(z|x) = \mathcal{N}(z; \mu_z(x), \sigma_z(x))$
+  \item Parametrize $z$ as $z = \mu_z(x) + \sigma_z(x)\varepsilon_z$ where $\varepsilon_z = \mathcal{N}(0, 1)$ 
+\end{itemize}
+
+% почему хорошо? переписать нижнюю оценку
+\end{frame}
+
+% слайд про алгоритм
 
 \begin{frame}[fragile]{VAE inference model}
 \textcolor{darkred}{The VAE approach}: introduce an inference model that
 learns to approximate the intractable posterior by
 optimizing the variational lower bound: 
-$$ \mathcal{L}(\theta, \phi, x) = -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p(z)] + \mathbb{E}_q [\log p_\theta (x|z)] $$
+$$ \mathcal{L}(\theta, \phi, x) = -\mathbb{D}_{KL}[q_{\phi} (z|x) \parallel p(z)] + \mathbb{E}_q [\log p_\theta (x|z)] $$
 We parameterize with another neural network:
 \begin{figure}[htbp]
   \includegraphics[height=130pt, keepaspectratio = true]{images/vae}   
 \end{figure}
-
-\end{frame}
-
-\begin{frame}[fragile]{Reparametrization trick}
-\begin{itemize}
-  \item $q_\phi(z|x) = \mathcal{N}(z; \mu_z(x), \sigma_z(x))$
-  \item Parametrize $z$ as $z = \mu_z(x) + \sigma_z(x)\varepsilon_z$ where $\varepsilon_z = \mathcal{N}(0, 1)$ 
-\end{itemize}
+\tiny \textcolor{gray}{http://videolectures.net/deeplearning2015\_courville\_autoencoder\_extension/}
 \end{frame}
 
 \begin{frame}[fragile]{Coding theory perspective}
@@ -95,6 +118,12 @@ The unobserved variables $z$ have an interpretation as a latent representation o
         Given a code $z$ it produces a distribution over the possible corresponding values of $x$
 \end{itemize}
 \end{frame}
+
+\begin{frame}[fragile]{Variational Auto-Encoder}
+todo 
+% см статью п.3
+\end{frame}
+
 
 \begin{frame}[fragile]{Model restriction}
 Diagonal covariance\\
@@ -125,28 +154,41 @@ Law of the unconscious statistician:\\
 $$\mathbb{E}_{q_K} \left[g(z_K)\right] = \mathbb{E}_{q_0} \left[ g(f_K \circ f_{K−1} \circ \cdots \circ f_2 \circ f_1(z_0)) \right] $$
 \end{frame}
 
-\begin{frame}[fragile]{Variational lower bound}
-\begin{align*} 
-\mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q_\phi(z|x)} \left[ \log p_\theta(x, z) - \log q_\phi(z | x) \right] \\
-&= \mathbb{E}_{q_K(z_K)} \left[ \log p(x, z_K) - \log q(z_K) \right] \\
-&= \mathbb{E}_{q_0(z_0)} \left[ \log p(x, z_K) - \log q0(z_0) + \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert \right] 
-\end{align*} 
-\end{frame}
-
 \begin{frame}[fragile]{Planar flow}
 Family of transformations: $f(z) = z + uh(w^⊤z + b)$\\
 \vspace{5mm}
 $$\left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z) \right\vert \text{where} \psi(z) = h'(w^⊤z + b)w$$ \\
 $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert 1 + u^T \psi(z) \right\vert $$
+% картиночки (применение потока + обучение потока)
+%геометрический смысл
 \end{frame}
 
 \begin{frame}[fragile]{Radial flow}
 todo
+
 \end{frame}
 
+% картинка про поток?
 
-\begin{frame}[fragile]{Results}
+\begin{frame}[fragile]{Variational lower bound}
+\begin{align*} 
+\mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q_\phi(z|x)} \left[ \log p_\theta(x, z) - \log q_\phi(z | x) \right] \\
+&= \mathbb{E}_{q_K(z_K)} \left[ \log p(x, z_K) - \log q(z_K) \right] \\
+&= \mathbb{E}_{q_0(z_0)} \left[ \log p(x, z_K) - \log q_0(z_0) + \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert \right] 
+\end{align*} 
+\end{frame}
+
+% еще раз алгоритм?
+
+\begin{frame}[fragile]{MNIST (vae, vae+nf)}
 todo
+%картинки
+% график ELBO
+\end{frame}
+
+\begin{frame}[fragile]{лица?}
+todo
+%картинки
 \end{frame}
 
 \begin{frame}[fragile]{Future experiments}
