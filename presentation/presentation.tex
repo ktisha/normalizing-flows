@@ -87,15 +87,16 @@ for a choice of parameters $theta$
 
 % 7
 \begin{frame}[fragile]{Mean field}
-  todo 
+  TODO 
   % в явном виде нам q(z ) не нужна
 \end{frame}
 
 % 8
 \begin{frame}[fragile]{AEVB}
+  TODO
   % везде нейросети
   % переход к minibatch
-todo
+
 \end{frame}
 
 % 9
@@ -178,8 +179,8 @@ todo
 
 % 15
 \begin{frame}[fragile]{Variational Auto-Encoder}
-todo 
-% см статью п.3
+  TODO
+  % см статью п.3
 \end{frame}
 
 % 16
@@ -218,23 +219,33 @@ todo
 
 % 19
 \begin{frame}[fragile]{Planar flow}
-  Family of transformations: $f(z) = z + uh\left( w^T z + b \right)$\\
+  \textcolor{darkred}{Family of transformations}: $f(z) = z + uh\left( w^T z + b \right)$\\
   ~\\
   $$\left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z) 
   \right\vert ~~~\text{where}~~~ \psi(z) = h'(w^Tz + b)w$$ \\
-  $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert 1 + u^T \psi(z) \right\vert $$
-  % картиночки (применение потока + обучение потока)
-  %геометрический смысл
+  $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert 1 + u^T \psi(z) \right\vert $$\\
+  ~\\
+  This flow modifies the initial density $q_0$ by applying a series of contractions and expansions in 
+  the direction perpendicular to the hyperplane $w^Tz+b = 0$.
+  
+  % TODO: картиночки (применение потока + обучение потока)
 \end{frame}
 
 % 20
 \begin{frame}[fragile]{Radial flow}
-  todo
+  \textcolor{darkred}{Family of transformations}: \\
+  $f(z) = z + \beta h(\alpha, r)(z-z_0) ~~~\text{where}~~~ r = \vert z-z_0 \vert$, 
+  $h(\alpha, r) = \frac{1}{\alpha + r}$\\
+  ~\\
+  $\det \left\vert \frac{\partial f}{\partial z} \right\vert = [1 + \beta h(\alpha, r)]^{(d-1)}
+  [1 + \beta h(\alpha, r) + h'(\alpha, r) r]$\\
+  ~\\
+  This flow applies radial contractions and expansions around the reference point $z_0$.
 \end{frame}
 
 % 21
 \begin{frame}[fragile]{Examples}
-  todo
+  TODO:
   % картинка про поток?
 \end{frame}
 
@@ -277,20 +288,20 @@ todo
 
 % 25
 \begin{frame}[fragile]{MNIST (vae, vae+nf)}
-  todo
+  TODO
   %картинки
   % график ELBO
 \end{frame}
 
 % 26
 \begin{frame}[fragile]{лица?}
-  todo
+  TODO
   %картинки
 \end{frame}
 
 % 27
 \begin{frame}[fragile]{Future experiments}
-  todo 
+  TODO 
 \end{frame}
 
 \end{document}
