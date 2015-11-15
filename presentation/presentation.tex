@@ -152,102 +152,133 @@ todo
 
 % 13
 \begin{frame}[fragile]{VAE inference model}
-\textcolor{darkred}{The VAE approach}: introduce an inference model that
-learns to approximate the intractable posterior by
-optimizing the variational lower bound: 
-$$ \mathcal{L}(\theta, \phi, x) = -\mathbb{D}_{KL}[q_{\phi} (z|x) \parallel p(z)] + \mathbb{E}_q [\log p_\theta (x|z)] $$
-We parameterize with another neural network:
-\begin{figure}[htbp]
-  \includegraphics[height=130pt, keepaspectratio = true]{images/vae}   
-\end{figure}
-\tiny \textcolor{gray}{http://videolectures.net/deeplearning2015\_courville\_autoencoder\_extension}
+  \textcolor{darkred}{The VAE approach}: introduce an inference model that
+  learns to approximate the intractable posterior by optimizing the variational lower bound: 
+  $$ \mathcal{L}(\theta, \phi, x) = -\mathbb{D}_{KL}[q_{\phi} (z|x) \parallel p(z)] + 
+  \mathbb{E}_q [\log p_\theta (x|z)] $$
+  We parameterize with another neural network:
+  \begin{figure}[htbp]
+    \includegraphics[height=130pt, keepaspectratio = true]{images/vae}   
+  \end{figure}
+  \tiny \textcolor{gray}{http://videolectures.net/deeplearning2015\_courville\_autoencoder\_extension}
 \end{frame}
 
+% 14
 \begin{frame}[fragile]{Coding theory perspective}
-The unobserved variables $z$ have an interpretation as a latent representation or code.
+  The unobserved variables $z$ have an interpretation as a latent representation or code.
 
-\begin{itemize}
-  \item Represent recognition model $q_phi(z|x)$ as a probabilistic encoder.\\
-        Given a datapoint $x$ it produces a distribution over the possible values of the code $z$ from which the datapoint $x$ could have been generated
-  \item Represent $p\theta(x|z)$ as a probabilistic decoder.\\
+  \begin{itemize}
+    \item Represent recognition model $q_{\phi}(z|x)$ as a probabilistic encoder.\\
+        Given a datapoint $x$ it produces a distribution over the possible values of the code $z$ 
+        from which the datapoint $x$ could have been generated
+    \item Represent $p_{\theta}(x|z)$ as a probabilistic decoder.\\
         Given a code $z$ it produces a distribution over the possible corresponding values of $x$
-\end{itemize}
+  \end{itemize}
 \end{frame}
 
+% 15
 \begin{frame}[fragile]{Variational Auto-Encoder}
 todo 
 % см статью п.3
 \end{frame}
 
-
+% 16
 \begin{frame}[fragile]{Model restriction}
-Diagonal covariance\\
-\vspace{5mm}
-What can be done?
+  Diagonal covariance\\
+  ~\\
+  What can be done?\\
+  ~\\
+  How can we get closer to $p_{\theta}(z|x)$?
 \end{frame}
 
-
+% 17
 \begin{frame}[fragile]{Normalizing flows}
-\textcolor{darkred}{Normalizing flows}: the transformation of a probability density through
-a sequence of invertible mappings.
-\begin{itemize}
-  \item By repeated application of the rule for random variable transformations, the initial
-density flows through the sequence of invertible mappings.
-  \item At the end of the sequence, we have a valid probability distribution.
-\end{itemize}
+  \textcolor{darkred}{Normalizing flows}: the transformation of a probability density through 
+  a sequence of invertible mappings.
+  \begin{itemize}
+    \item By repeated application of the rule for random variable transformations, the initial 
+    density flows through the sequence of invertible mappings.
+    \item At the end of the sequence, we have a valid probability distribution.
+  \end{itemize}
 
 \end{frame}
 
+% 18
 \begin{frame}[fragile]{Normalizing flows}
-Transformation of random variables: $z' = f(z)$, $f^{-1}(z') = z$\\
-$$q(z') = q(z) \left\vert \det \frac{\partial f^{-1}(z')}{\partial z'} \right\vert = 
-q(z) \left\vert \det \frac{\partial f(z')}{\partial z'} \right\vert^{-1}$$\\
-Chaining together a sequence: $z_K = f_K \circ f_{K−1} \circ \cdots \circ f_2 \circ f_1(z_0)$\\
-$$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert $$
+  Transformation of random variables: $z' = f(z)$, $f^{-1}(z') = z$\\
+  $$q(z') = q(z) \left\vert \det \frac{\partial f^{-1}(z')}{\partial z'} \right\vert = 
+  q(z) \left\vert \det \frac{\partial f(z')}{\partial z'} \right\vert^{-1}$$\\
+  Chaining together a sequence: $z_K = f_K \circ f_{K−1} \circ \cdots \circ f_2 \circ f_1(z_0)$\\
+  $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert $$
 
-Law of the unconscious statistician:\\
-$$\mathbb{E}_{q_K} \left[g(z_K)\right] = \mathbb{E}_{q_0} \left[ g(f_K \circ f_{K−1} \circ \cdots \circ f_2 \circ f_1(z_0)) \right] $$
+  Law of the unconscious statistician:\\
+  $$\mathbb{E}_{q_K} \left[g(z_K)\right] = \mathbb{E}_{q_0} \left[ g(f_K \circ f_{K−1} \circ \cdots \circ f_2 
+  \circ f_1(z_0)) \right] $$
 \end{frame}
 
+% 19
 \begin{frame}[fragile]{Planar flow}
-Family of transformations: $f(z) = z + uh(w^⊤z + b)$\\
-\vspace{5mm}
-$$\left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z) \right\vert \text{where} \psi(z) = h'(w^⊤z + b)w$$ \\
-$$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert 1 + u^T \psi(z) \right\vert $$
-% картиночки (применение потока + обучение потока)
-%геометрический смысл
+  Family of transformations: $f(z) = z + uh\left( w^T z + b \right)$\\
+  ~\\
+  $$\left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z) 
+  \right\vert ~~~\text{where}~~~ \psi(z) = h'(w^Tz + b)w$$ \\
+  $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert 1 + u^T \psi(z) \right\vert $$
+  % картиночки (применение потока + обучение потока)
+  %геометрический смысл
 \end{frame}
 
+% 20
 \begin{frame}[fragile]{Radial flow}
-todo
-
+  todo
 \end{frame}
 
-% картинка про поток?
+% 21
+\begin{frame}[fragile]{Examples}
+  todo
+  % картинка про поток?
+\end{frame}
 
+% 22
 \begin{frame}[fragile]{Variational lower bound}
-\begin{align*} 
-\mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q_\phi(z|x)} \left[ \log p_\theta(x, z) - \log q_\phi(z | x) \right] \\
-&= \mathbb{E}_{q_K(z_K)} \left[ \log p(x, z_K) - \log q(z_K) \right] \\
-&= \mathbb{E}_{q_0(z_0)} \left[ \log p(x, z_K) - \log q_0(z_0) + \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert \right] 
-\end{align*} 
+  \begin{align*} 
+  \mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q_\phi(z|x)} \left[ \log p_\theta(x, z) - \log q_\phi(z | x) \right] \\
+  &= \mathbb{E}_{q_K(z_K)} \left[ \log p(x, z_K) - \log q(z_K) \right] \\
+  &= \mathbb{E}_{q_0(z_0)} \left[ \log p(x, z_K) - \log q_0(z_0) + \sum_{k=1}^K \log \left\vert \det 
+  \frac{\partial f_k}  {\partial z_k} \right\vert \right] 
+  \end{align*} 
 \end{frame}
 
-% еще раз алгоритм?
+% 23
+\begin{frame}[fragile]{Algorithm}
+  \begin{algorithmic}
+    \State $\theta, \phi \gets$ initialize parameters
+    \Repeat 
+       \State $X^M \gets$ Random minibatch of $M$ datapoints 
+       \State $\varepsilon \gets$ Random samples from noise distribution $p(\varepsilon)$
+       \State $g \gets \nabla_{\phi, \theta} \mathcal{L}^M(\theta, \phi; X^M, \varepsilon) $ Gradients of minibatch estimator
+       \State $\theta, \phi \gets$ Update parameters using gradients $g$
+    \Until {convergence of parameters $\theta$, $\phi$}\\
+    \Return $\theta$, $\phi$
+  \end{algorithmic}
+  
+\end{frame}
 
+% 24
 \begin{frame}[fragile]{MNIST (vae, vae+nf)}
-todo
-%картинки
-% график ELBO
+  todo
+  %картинки
+  % график ELBO
 \end{frame}
 
+% 25
 \begin{frame}[fragile]{лица?}
-todo
-%картинки
+  todo
+  %картинки
 \end{frame}
 
+% 26
 \begin{frame}[fragile]{Future experiments}
-todo 
+  todo 
 \end{frame}
 
 \end{document}
