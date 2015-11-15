@@ -254,7 +254,9 @@ todo
     \State $\theta, \phi \gets$ initialize parameters
     \Repeat 
        \State $X^M \gets$ Random minibatch of $M$ datapoints 
-       \State $\varepsilon \gets$ Random samples from noise distribution $p(\varepsilon)$
+       \State $z_0 \sim q_0(\bullet|x)$ 
+       \State $z_k \gets f_K \circ f_{K-1} \circ \cdots \circ f_1(z_0)$ 
+       \State $L(x) \approx L(x, z_k)$
        \State $g \gets \nabla_{\phi, \theta} \mathcal{L}^M(\theta, \phi; X^M, \varepsilon) $ Gradients of minibatch estimator
        \State $\theta, \phi \gets$ Update parameters using gradients $g$
     \Until {convergence of parameters $\theta$, $\phi$}\\
@@ -264,19 +266,29 @@ todo
 \end{frame}
 
 % 24
+\begin{frame}[fragile]{Algorithm}
+  Normalizing flow integration into the VAE:\\
+  \begin{figure}[htbp]
+    \includegraphics[height=130pt, keepaspectratio = true]{images/norFlow}   
+  \end{figure}
+  ~\\
+  \tiny \textcolor{gray}{http://arxiv.org/pdf/1505.05770v4.pdf}
+\end{frame}
+
+% 25
 \begin{frame}[fragile]{MNIST (vae, vae+nf)}
   todo
   %картинки
   % график ELBO
 \end{frame}
 
-% 25
+% 26
 \begin{frame}[fragile]{лица?}
   todo
   %картинки
 \end{frame}
 
-% 26
+% 27
 \begin{frame}[fragile]{Future experiments}
   todo 
 \end{frame}
