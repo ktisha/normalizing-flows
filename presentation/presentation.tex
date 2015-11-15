@@ -20,7 +20,7 @@
   $x~-$ observed variables\\
   $z~-$ continuous latent variables\\
   $\theta~-$ model parameters\\
-  $\phi~-$ variational parameters\\
+%  $\phi~-$ variational parameters\\
   $p_{\theta}(x, z)~-$ joint probability density function\\
 %  ~\\
 %  \textcolor{darkred}{Goal}: Learn parameters $\theta$
@@ -48,7 +48,7 @@
   \begin{enumerate}
     \item Efficient approximate ML or MAP estimation for the parameters $\theta$
     \item Efficient approximate posterior inference of the latent variable $z$ given an observed value $x$
-for a choice of parameters $theta$
+for a choice of parameters $\theta$
     \item Efficient approximate marginal inference of the variable $x$ 
   \end{enumerate}
 \end{frame}
@@ -73,7 +73,8 @@ for a choice of parameters $theta$
 	\begin{align*} 
 		\log {p_\theta (x)} &= \log \int {p_\theta (x|z) p_\theta(z) dz} \\
 		&= \log \int{ \frac{q_\phi (z|x)}{q_\phi (z|x)} p_\theta (x|z) p_{\theta}(z) dz} \\
-		&\ge -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p_{\theta}(z)] + \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)]
+		&\ge -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p_{\theta}(z)] + \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)] 
+		= \mathcal{L}(\theta, \phi; x)
 	\end{align*} 
 
   \begin{itemize}
@@ -86,20 +87,16 @@ for a choice of parameters $theta$
 \end{frame}
 
 % 7
-\begin{frame}[fragile]{Mean field}
-  TODO 
-  % в явном виде нам q(z ) не нужна
-\end{frame}
-
-% 8
 \begin{frame}[fragile]{AEVB}
+    
+  
   TODO
   % везде нейросети
   % переход к minibatch
 
 \end{frame}
 
-% 9
+% 8
 \begin{frame}[fragile]{Standart Monte-Carlo ELBO}
 %  \textcolor{darkred}{Problem}: Efficient computation of $\nabla_{\phi} \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)] $\\
 %  ~\\
@@ -111,7 +108,7 @@ for a choice of parameters $theta$
   \textcolor{darkred}{Problem}: Exhibits high variance
 \end{frame}
 
-% 10
+% 9
 \begin{frame}[fragile]{Reparametrization trick}
   \textcolor{darkred}{Idea}: Alternative method for generating samples from $q_{\phi}(z|x)$
   ~\\
@@ -125,7 +122,7 @@ for a choice of parameters $theta$
   \frac{1}{L} \sum\limits_{l=1}^L f(g_{\phi}(\varepsilon^{(l)}, x))$
 \end{frame}
 
-% 11
+% 10
 \begin{frame}[fragile]{Reparametrization trick. Gaussian case}
   \begin{enumerate}    
     \item $q_\phi(z|x) = \mathcal{N}(z; \mu, \sigma^2)$
@@ -136,7 +133,7 @@ for a choice of parameters $theta$
   \mathbb{E}_{\mathcal{N}(\varepsilon| 0, 1)} [\nabla_{\phi} f_{\theta} (\mu + \sigma \varepsilon)]$
 \end{frame}
 
-% 12
+% 11
 \begin{frame}[fragile]{Algorithm}
   \begin{algorithmic}
     \State $\theta, \phi \gets$ initialize parameters
@@ -151,7 +148,7 @@ for a choice of parameters $theta$
   
 \end{frame}
 
-% 13
+% 12
 \begin{frame}[fragile]{VAE inference model}
   \textcolor{darkred}{The VAE approach}: introduce an inference model that
   learns to approximate the intractable posterior by optimizing the variational lower bound: 
@@ -164,7 +161,7 @@ for a choice of parameters $theta$
   \tiny \textcolor{gray}{http://videolectures.net/deeplearning2015\_courville\_autoencoder\_extension}
 \end{frame}
 
-% 14
+% 13
 \begin{frame}[fragile]{Coding theory perspective}
   The unobserved variables $z$ have an interpretation as a latent representation or code.
 
@@ -177,22 +174,27 @@ for a choice of parameters $theta$
   \end{itemize}
 \end{frame}
 
-% 15
+% 14
 \begin{frame}[fragile]{Variational Auto-Encoder}
-  TODO
-  % см статью п.3
+  $p_{\theta}(z) = \mathcal{N}(z;0, I)$\\
+  $p_{\theta}(x|z) ~-$ multivariate Gaussian, distribution parameters are computed from 
+  $z$ with a MLP\\
+  $p_{\theta}(z|x) ~-$ intractable, takes on an approximate Gaussian form with an approximately diagonal covariance\\
+  ~\\
+  $q_{\phi}(z|x^{(i)}) = \log \mathcal{N}(z; \mu^{(i)}, \sigma^{2(i)} I) $\\
+  $\mu^{(i)}, \sigma^{(i)} ~-$ outputs of the encoding MLP\\
+  ~\\
+  $L(\theta, \phi; x^{(i)}) \simeq \frac{1}{2} \sum\limits_{j=1}^J (1 + \log ((\sigma_j^{(i)})^2) - 
+  (\mu_j^{(i)})^2 - (\sigma_j^{(i)})^2) + \frac{1}{L} \sum\limits_{l=1}^L \log p_{\theta} (x^{(i)}|z^{(i,l)})$\\
+  where $z^{(i,l)} = \mu^{(i)} + \sigma^{(i)} \odot \varepsilon^{(l)}$ and $\varepsilon^{(l)} \sim \mathcal{N}(0,I)$
 \end{frame}
 
-% 16
+% 15
 \begin{frame}[fragile]{Model restriction}
-  Diagonal covariance\\
-  ~\\
-  What can be done?\\
-  ~\\
   How can we get closer to $p_{\theta}(z|x)$?
 \end{frame}
 
-% 17
+% 16
 \begin{frame}[fragile]{Normalizing flows}
   \textcolor{darkred}{Normalizing flows}: the transformation of a probability density through 
   a sequence of invertible mappings.
@@ -204,7 +206,7 @@ for a choice of parameters $theta$
 
 \end{frame}
 
-% 18
+% 17
 \begin{frame}[fragile]{Normalizing flows}
   Transformation of random variables: $z' = f(z)$, $f^{-1}(z') = z$\\
   $$q(z') = q(z) \left\vert \det \frac{\partial f^{-1}(z')}{\partial z'} \right\vert = 
@@ -217,7 +219,7 @@ for a choice of parameters $theta$
   \circ f_1(z_0)) \right] $$
 \end{frame}
 
-% 19
+% 18
 \begin{frame}[fragile]{Planar flow}
   \textcolor{darkred}{Family of transformations}: $f(z) = z + uh\left( w^T z + b \right)$\\
   ~\\
@@ -231,7 +233,7 @@ for a choice of parameters $theta$
   % TODO: картиночки (применение потока + обучение потока)
 \end{frame}
 
-% 20
+% 19
 \begin{frame}[fragile]{Radial flow}
   \textcolor{darkred}{Family of transformations}: \\
   $f(z) = z + \beta h(\alpha, r)(z-z_0) ~~~\text{where}~~~ r = \vert z-z_0 \vert$, 
@@ -243,13 +245,13 @@ for a choice of parameters $theta$
   This flow applies radial contractions and expansions around the reference point $z_0$.
 \end{frame}
 
-% 21
+% 20
 \begin{frame}[fragile]{Examples}
-  TODO:
+  TODO
   % картинка про поток?
 \end{frame}
 
-% 22
+% 21
 \begin{frame}[fragile]{Variational lower bound}
   \begin{align*} 
   \mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q_\phi(z|x)} \left[ \log p_\theta(x, z) - \log q_\phi(z | x) \right] \\
@@ -259,7 +261,7 @@ for a choice of parameters $theta$
   \end{align*} 
 \end{frame}
 
-% 23
+% 22
 \begin{frame}[fragile]{Algorithm}
   \begin{algorithmic}
     \State $\theta, \phi \gets$ initialize parameters
@@ -276,7 +278,7 @@ for a choice of parameters $theta$
   
 \end{frame}
 
-% 24
+% 23
 \begin{frame}[fragile]{Algorithm}
   Normalizing flow integration into the VAE:\\
   \begin{figure}[htbp]
@@ -286,20 +288,20 @@ for a choice of parameters $theta$
   \tiny \textcolor{gray}{http://arxiv.org/pdf/1505.05770v4.pdf}
 \end{frame}
 
-% 25
+% 24
 \begin{frame}[fragile]{MNIST (vae, vae+nf)}
   TODO
   %картинки
   % график ELBO
 \end{frame}
 
-% 26
+% 25
 \begin{frame}[fragile]{лица?}
   TODO
   %картинки
 \end{frame}
 
-% 27
+% 26
 \begin{frame}[fragile]{Future experiments}
   TODO 
 \end{frame}
