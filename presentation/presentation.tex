@@ -1,6 +1,7 @@
 %% -*- TeX-engine: luatex; ispell-dictionary: "english" -*-
 
 \documentclass[unicode,11pt]{beamer}
+\usepackage{algpseudocode}
 
 \input{presentation-base}
 
@@ -134,8 +135,22 @@ todo
   \mathbb{E}_{\mathcal{N}(\varepsilon| 0, 1)} [\nabla_{\phi} f_{\theta} (\mu + \sigma \varepsilon)]$
 \end{frame}
 
-% слайд про алгоритм
+% 12
+\begin{frame}[fragile]{Algorithm}
+  \begin{algorithmic}
+    \State $\theta, \phi \gets$ initialize parameters
+    \Repeat 
+       \State $X^M \gets$ Random minibatch of $M$ datapoints 
+       \State $\varepsilon \gets$ Random samples from noise distribution $p(\varepsilon)$
+       \State $g \gets \nabla_{\phi, \theta} \mathcal{L}^M(\theta, \phi; X^M, \varepsilon) $ Gradients of minibatch estimator
+       \State $\theta, \phi \gets$ Update parameters using gradients $g$
+    \Until {convergence of parameters $\theta$, $\phi$}\\
+    \Return $\theta$, $\phi$
+  \end{algorithmic}
+  
+\end{frame}
 
+% 13
 \begin{frame}[fragile]{VAE inference model}
 \textcolor{darkred}{The VAE approach}: introduce an inference model that
 learns to approximate the intractable posterior by
@@ -145,7 +160,7 @@ We parameterize with another neural network:
 \begin{figure}[htbp]
   \includegraphics[height=130pt, keepaspectratio = true]{images/vae}   
 \end{figure}
-\tiny \textcolor{gray}{http://videolectures.net/deeplearning2015\_courville\_autoencoder\_extension/}
+\tiny \textcolor{gray}{http://videolectures.net/deeplearning2015\_courville\_autoencoder\_extension}
 \end{frame}
 
 \begin{frame}[fragile]{Coding theory perspective}
