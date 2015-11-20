@@ -13,7 +13,7 @@ import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, FeaturePoolLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat
-from lasagne.nonlinearities import rectify, identity
+from lasagne.nonlinearities import identity, tanh
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
@@ -34,11 +34,13 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     # q(z|x)
     net["enc_input"] = InputLayer((batch_size, num_features))
     net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=num_hidden,
-                                    nonlinearity=rectify)
-    net["enc_hidden2"] = maxout(net["enc_hidden1"], pool_size)
-    net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
+                                    nonlinearity=tanh)
+    net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=num_hidden,
+                                    nonlinearity=identity)
+    net["enc_hidden3"] = maxout(net["enc_hidden2"], pool_size)
+    net["z_mu"] = DenseLayer(net["enc_hidden3"], num_units=num_latent,
                              nonlinearity=identity)
-    net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
+    net["z_log_covar"] = DenseLayer(net["enc_hidden3"], num_units=num_latent,
                                     nonlinearity=identity)
 
     net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
@@ -55,11 +57,13 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
 
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=num_hidden,
-                                    nonlinearity=rectify)
-    net["dec_hidden2"] = maxout(net["dec_hidden1"], pool_size)
-    net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
+                                    nonlinearity=tanh)
+    net["dec_hidden2"] = DenseLayer(net["z_k"], num_units=num_hidden,
+                                    nonlinearity=identity)
+    net["dec_hidden3"] = maxout(net["dec_hidden2"], pool_size)
+    net["x_mu"] = DenseLayer(net["dec_hidden3"], num_units=num_features,
                              nonlinearity=identity)
-    net["x_log_covar"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
+    net["x_log_covar"] = DenseLayer(net["dec_hidden3"], num_units=num_features,
                                     nonlinearity=identity)
     return net
 
@@ -128,10 +132,12 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
             val_err += val_nelbo(Xb)
             val_batches += 1
 
+        assert not np.isnan(train_err) and not np.isnan(val_err)
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.perf_counter() - start_time))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+
         train_errs.append(train_err)
         val_errs.append(val_err)
 
