@@ -17,10 +17,10 @@ from lasagne.nonlinearities import identity, tanh
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
-from .datasets import load_mnist_dataset
-from .layers import GaussianNoiseLayer
-from .layers import PlanarFlowLayer, IndexLayer
-from .utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
+from tomato.datasets import load_mnist_dataset
+from tomato.layers import GaussianNoiseLayer
+from tomato.layers import PlanarFlowLayer, IndexLayer
+from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
 
 
 maxout = FeaturePoolLayer

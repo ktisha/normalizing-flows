@@ -1,6 +1,12 @@
 import numpy as np
 import theano.tensor as T
 
+def logaddexp(X, Y):
+    """Accurately computes ``log(exp(X) + exp(Y))``."""
+    XY_max = T.maximum(X, Y)
+    XY_min = T.minimum(X, Y)
+    return XY_max + T.log1p(T.exp(XY_min - XY_max))
+
 
 def mvn_logpdf(X, mean, covar):
     """Returns a theano expression representing the values of the log

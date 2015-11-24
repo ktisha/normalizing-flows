@@ -32,7 +32,7 @@ docs/_build/
 
 *.pickle
 *.csv
-experiments/data
+tomato/data
 
 .idea/
 

@@ -1,15 +1,10 @@
 import numpy as np
 import theano
-from lasagne.utils import floatX as as_floatX
+import theano.tensor as T
 from matplotlib import pyplot as plt
 from scipy import integrate
-from theano import tensor as T
 
-from tomato.utils import mvn_logpdf, logaddexp
-
-
-def uniform(size):
-    return as_floatX(np.random.uniform(-4, 4, size=size))
+from .utils import logaddexp
 
 
 class Potential:
@@ -43,47 +38,13 @@ class Potential:
         return np.log(estimate)
 
 
-def plot_potential(Z, p, where=plt):
-    """
-    The pictures in the paper seem to have the y-axis flipped.
-    :type where: matplotlib.axes.Axes
-    """
-    where.scatter(Z[:, 0], -Z[:, 1], c=p, s=5, edgecolor="")
-    where.set_xlim((-4, 4))
-    where.set_ylim((-4, 4))
-
-
-def plot_sample(Z, k, where=plt, set_limits=True):
-    """
-    The pictures in the paper seem to have the y-axis flipped.
-    :type where: matplotlib.axes.Axes
-    """
+def plot_sample(Z, k, where=plt.axes()):
+    #                                          vvv
+    # the pictures in the paper seem to have the y-axis flipped.
     H, xedges, yedges = np.histogram2d(Z[:, 0], -Z[:, 1], bins=100)
     H = np.flipud(np.rot90(H))
     Hmasked = np.ma.masked_where(H == 0, H)
     where.pcolormesh(xedges, yedges, Hmasked)
-    if set_limits:
-        where.set_xlim((-4, 4))
-        where.set_ylim((-4, 4))
+    where.set_xlim((-4, 4))
+    where.set_ylim((-4, 4))
     where.set_title("K = {}".format(k))
-
-class Flow:
-    def __init__(self, K, batch_size=2500, n_iter=1000):
-        self.D = 2
-        self.K = K
-        self.batch_size = batch_size
-        self.n_iter = n_iter
-
-    def _assemble(self, potential):
-        raise NotImplementedError()
-
-    def fit(self, potential):
-        raise NotImplementedError()
-
-    def sample(self, n_samples=1):
-        Z_0 = np.random.normal(self.mean_, np.sqrt(self.covar_),
-                               size=(n_samples, self.D))
-        return self.transform(as_floatX(Z_0))
-
-    def transform(self, Z_0):
-        return self.flow_(Z_0)
