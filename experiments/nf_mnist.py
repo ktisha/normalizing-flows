@@ -50,7 +50,7 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=num_hidden,
                                     nonlinearity=rectify)
-    net["dec_hidden2"] = DenseLayer(net["z_k"], num_units=num_hidden,
+    net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=num_hidden,
                                     nonlinearity=rectify)
     # net["dec_hidden3"] = maxout(net["dec_hidden2"], pool_size)
     net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
@@ -61,8 +61,8 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
 
 
 def elbo_nf(X_var, x_mu_var, x_log_covar_var,
-            z_0_var, z_mu_var, z_log_covar_var,
-            z_k_var, logdet_var, beta_t):
+            z_0_var, z_k_var, z_mu_var, z_log_covar_var,
+            logdet_var, beta_t):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return (
         beta_t * (mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
