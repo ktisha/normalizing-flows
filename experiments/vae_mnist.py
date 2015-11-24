@@ -17,9 +17,9 @@ from lasagne.nonlinearities import rectify, identity
 from lasagne.updates import rmsprop
 from lasagne.utils import floatX as as_floatX
 
-from .datasets import load_mnist_dataset
-from .layers import GaussianNoiseLayer
-from .utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
+from tomato.datasets import load_mnist_dataset
+from tomato.layers import GaussianNoiseLayer
+from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
 
 
 def build_model(batch_size, num_features, num_latent, num_hidden):

@@ -13,7 +13,7 @@ import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, FeaturePoolLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat
-from lasagne.nonlinearities import identity, sigmoid
+from lasagne.nonlinearities import identity, sigmoid, rectify
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
@@ -34,13 +34,13 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     # q(z|x)
     net["enc_input"] = InputLayer((batch_size, num_features))
     net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=num_hidden,
-                                    nonlinearity=sigmoid)
+                                    nonlinearity=rectify)
     net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=num_hidden,
-                                    nonlinearity=identity)
-    net["enc_hidden3"] = maxout(net["enc_hidden2"], pool_size)
-    net["z_mu"] = DenseLayer(net["enc_hidden3"], num_units=num_latent,
+                                    nonlinearity=rectify)
+    # net["enc_hidden3"] = maxout(net["enc_hidden2"], pool_size)
+    net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
                              nonlinearity=identity)
-    net["z_log_covar"] = DenseLayer(net["enc_hidden3"], num_units=num_latent,
+    net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=num_latent,
                                     nonlinearity=identity)
 
     net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
@@ -49,24 +49,25 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
 
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=num_hidden,
-                                    nonlinearity=sigmoid)
+                                    nonlinearity=rectify)
     net["dec_hidden2"] = DenseLayer(net["z_k"], num_units=num_hidden,
-                                    nonlinearity=identity)
-    net["dec_hidden3"] = maxout(net["dec_hidden2"], pool_size)
-    net["x_mu"] = DenseLayer(net["dec_hidden3"], num_units=num_features,
+                                    nonlinearity=rectify)
+    # net["dec_hidden3"] = maxout(net["dec_hidden2"], pool_size)
+    net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
                              nonlinearity=identity)
-    net["x_log_covar"] = DenseLayer(net["dec_hidden3"], num_units=num_features,
+    net["x_log_covar"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
                                     nonlinearity=identity)
     return net
 
 
-def elbo_nf(X_var, x_mu_var, x_log_covar_var, z_0_var, z_k_var, logdet_var,
-            beta_t):
+def elbo_nf(X_var, x_mu_var, x_log_covar_var,
+            z_0_var, z_mu_var, z_log_covar_var,
+            z_k_var, logdet_var, beta_t):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return (
         beta_t * (mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
                   + mvn_std_logpdf(z_k_var))
-        - mvn_std_logpdf(z_0_var) + logdet_var
+        - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var) - logdet_var)
     ).mean()
 
 
@@ -81,20 +82,24 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
     net = build_model(batch_size, num_features, num_latent, num_hidden,
                       num_flows)
 
-    vars = ["x_mu", "x_log_covar", "z", "z_k"]
-    x_mu_var, x_log_covar_var, z_0_var, z_k_var, *logdet_var = get_output(
+    vars = ["x_mu", "x_log_covar", "z", "z_k", "z_mu", "z_log_covar"]
+    (x_mu_var, x_log_covar_var, z_0_var,
+     z_k_var, z_mu_var, z_log_covar_var, *logdet_var) = get_output(
         [net[var] for var in vars] + net["logdet"],
         X_var, deterministic=False
     )
     elbo_train = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                         z_0_var, z_k_var, sum(logdet_var), beta_var)
+                         z_0_var, z_k_var, z_mu_var, z_log_covar_var,
+                         sum(logdet_var), beta_var)
 
-    x_mu_var, x_log_covar_var, z_0_var, z_k_var, *logdet_vars = get_output(
+    (x_mu_var, x_log_covar_var, z_0_var,
+     z_k_var, z_mu_var, z_log_covar_var, *logdet_vars) = get_output(
         [net[var] for var in vars] + net["logdet"],
         X_var, deterministic=True
     )
     elbo_val = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                       z_0_var, z_k_var, sum(logdet_vars), beta_var)
+                       z_0_var, z_k_var, z_mu_var, z_log_covar_var,
+                       sum(logdet_vars), beta_var)
 
     params = get_all_params(concat([net["x_mu"], net["x_log_covar"]]),
                             trainable=True)
@@ -112,7 +117,8 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
 
         train_err, train_batches = 0, 0
         # Causes ELBO to go to infinity. Should investigate further.
-        beta = min(1, 0.01 + float(epoch) / num_epochs)
+        # beta = min(1, 0.01 + float(epoch) / num_epochs)
+        beta = 1
         for Xb, yb in iter_minibatches(X_train, y_train,
                                        batch_size=batch_size):
             train_err += train_nelbo(Xb, beta)
@@ -217,7 +223,7 @@ if __name__ == "__main__":
     parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
 
-    # path = Path("nf_mnist_L2_H500_F8.pickle")
+    # path = Path("nf_mnist_L2_H500_F0.pickle")
     # plot_manifold(path)
     args = parser.parse_args()
     main(**vars(args))
