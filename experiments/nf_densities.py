@@ -23,7 +23,6 @@ def main(num_flows, num_iter, batch_size, potential):
     net["z_0"] = InputLayer((batch_size, num_features))
     net["z_k"], logdet = planar_flow(net["z_0"], num_flows)
 
-    print(net.values())
     z_0_var, z_k_var, *logdet_vars = get_output(list(net.values()) + logdet,
                                                 deterministic=False)
 
