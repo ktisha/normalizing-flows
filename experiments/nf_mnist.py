@@ -6,7 +6,6 @@ from pathlib import Path
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, \
@@ -131,10 +130,8 @@ def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs):
         val_errs.append(val_err)
 
     prefix = "nf_mnist_L{}_H{}_F{}".format(num_latent, num_hidden, num_flows)
-    pd.DataFrame.from_dict({
-        "train_err": train_errs,
-        "val_err": val_errs
-    }).to_csv(prefix + ".csv", index=False)
+    np.savetxt(prefix + ".csv", np.column_stack([train_errs, val_errs]),
+               delimiter=",")
 
     all_param_values = get_all_param_values(
         concat([net["x_mu"], net["x_log_covar"]]))

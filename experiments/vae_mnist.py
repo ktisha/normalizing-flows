@@ -6,7 +6,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
-import pandas as pd
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
@@ -178,10 +177,8 @@ def main(num_latent, num_hidden, batch_size, num_epochs):
             break
 
     prefix = "vae_mnist_L{}_H{}".format(num_latent, num_hidden)
-    pd.DataFrame.from_dict({
-        "train_err": train_errs,
-        "val_err": val_errs
-    }).to_csv(prefix + ".csv", index=False)
+    np.savetxt(prefix + ".csv", np.column_stack([train_errs, val_errs]),
+               delimiter=",")
 
     all_param_values = get_all_param_values(
         concat([net["x_mu"], net["x_log_covar"]]))
