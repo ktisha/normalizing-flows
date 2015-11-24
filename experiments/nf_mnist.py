@@ -13,13 +13,13 @@ import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, FeaturePoolLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat
-from lasagne.nonlinearities import identity, tanh
+from lasagne.nonlinearities import identity, sigmoid
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
 from tomato.datasets import load_mnist_dataset
 from tomato.layers import GaussianNoiseLayer
-from tomato.layers import PlanarFlowLayer, IndexLayer
+from tomato.layers import planar_flow
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
 
 
@@ -34,7 +34,7 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     # q(z|x)
     net["enc_input"] = InputLayer((batch_size, num_features))
     net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=num_hidden,
-                                    nonlinearity=tanh)
+                                    nonlinearity=sigmoid)
     net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=num_hidden,
                                     nonlinearity=identity)
     net["enc_hidden3"] = maxout(net["enc_hidden2"], pool_size)
@@ -45,19 +45,11 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
 
     net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
 
-    z = net["z"]
-    logdet = []
-    for _ in range(num_flows):
-        flow_layer = PlanarFlowLayer(z)
-        z = IndexLayer(flow_layer, 0)
-        logdet.append(IndexLayer(flow_layer, 1))
-
-    net["z_k"] = z
-    net["logdet"] = logdet
+    net["z_k"], net["logdet"] = planar_flow(net["z"], num_flows)
 
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=num_hidden,
-                                    nonlinearity=tanh)
+                                    nonlinearity=sigmoid)
     net["dec_hidden2"] = DenseLayer(net["z_k"], num_units=num_hidden,
                                     nonlinearity=identity)
     net["dec_hidden3"] = maxout(net["dec_hidden2"], pool_size)
@@ -97,12 +89,12 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
     elbo_train = elbo_nf(X_var, x_mu_var, x_log_covar_var,
                          z_0_var, z_k_var, sum(logdet_var), beta_var)
 
-    x_mu_var, x_log_covar_var, z_0_var, z_k_var, *logdet_var = get_output(
+    x_mu_var, x_log_covar_var, z_0_var, z_k_var, *logdet_vars = get_output(
         [net[var] for var in vars] + net["logdet"],
         X_var, deterministic=True
     )
     elbo_val = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                       z_0_var, z_k_var, sum(logdet_var), beta_var)
+                       z_0_var, z_k_var, sum(logdet_vars), beta_var)
 
     params = get_all_params(concat([net["x_mu"], net["x_log_covar"]]),
                             trainable=True)
@@ -120,8 +112,7 @@ def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
 
         train_err, train_batches = 0, 0
         # Causes ELBO to go to infinity. Should investigate further.
-        # beta = min(1, 0.01 + float(epoch) / num_epochs)
-        beta = 1
+        beta = min(1, 0.01 + float(epoch) / num_epochs)
         for Xb, yb in iter_minibatches(X_train, y_train,
                                        batch_size=batch_size):
             train_err += train_nelbo(Xb, beta)
