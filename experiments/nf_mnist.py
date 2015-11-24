@@ -71,7 +71,7 @@ def elbo_nf(X_var, x_mu_var, x_log_covar_var,
     ).mean()
 
 
-def main(num_latent, num_hidden, num_flows, batch_size, num_epochs):
+def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs):
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_mnist_dataset()
     num_features = X_train.shape[1]
@@ -191,7 +191,7 @@ def plot_manifold(path):
     plt.savefig(str(path.with_name(path.stem + "_manifold.png")))
 
 
-def plot_sample(path):
+def plot_sample(path, num_samples):
     net = load_model(path)
     z_var = T.matrix()
     z_mu = theano.function(
@@ -201,29 +201,43 @@ def plot_sample(path):
 
     figure = plt.figure()
 
-    n_samples = 256
-    z = np.random.normal(size=(n_samples, 2)).astype(theano.config.floatX)
+    num_subplots = int(np.sqrt(num_samples))
+    z = np.random.normal(size=(num_samples, 2)).astype(theano.config.floatX)
     for i, z_i in enumerate(z, 1):
         mu, covar = z_mu(np.array([z_i])), z_covar(np.array([z_i]))
         x = np.random.normal(mu, covar)
-        figure.add_subplot(16, 16, i)
+        figure.add_subplot(num_subplots, num_subplots, i)
         plt.axis("off")
         plt.imshow(x.reshape((28, 28)), cmap=cm.Greys)
 
     plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(str(path.with_name(path.stem + "_sample.png")))
+    plt.savefig(str(path.with_name(
+        "{}_sample_{}.png".format(path.stem, num_samples))))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Learn NF-VAE from MNIST data")
-    parser.add_argument("-L", dest="num_latent", type=int, default=100)
-    parser.add_argument("-H", dest="num_hidden", type=int, default=500)
-    parser.add_argument("-F", dest="num_flows", type=int, default=2)
-    parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
-    parser.add_argument("-B", dest="batch_size", type=int, default=500)
+    subparsers = parser.add_subparsers(dest="command")
+    subparsers.required = True
 
-    # path = Path("nf_mnist_L2_H500_F0.pickle")
-    # plot_manifold(path)
-    args = parser.parse_args()
-    main(**vars(args))
+    fit_parser = subparsers.add_parser("fit")
+    fit_parser.add_argument("-L", dest="num_latent", type=int, default=100)
+    fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
+    fit_parser.add_argument("-F", dest="num_flows", type=int, default=2)
+    fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
+    fit_parser.set_defaults(command=fit_model)
+
+    manifold_parser = subparsers.add_parser("manifold")
+    manifold_parser.add_argument("path", type=Path)
+    manifold_parser.set_defaults(command=plot_manifold)
+
+    sample_parser = subparsers.add_parser("sample")
+    sample_parser.add_argument("path", type=Path)
+    sample_parser.add_argument("-N", dest="num_samples", type=int, default=256)
+    sample_parser.set_defaults(command=plot_sample)
+
+    args = vars(parser.parse_args())
+    command = args.pop("command")
+    command(**args)
