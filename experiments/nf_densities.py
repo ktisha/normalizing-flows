@@ -9,7 +9,7 @@ from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
 
-from tomato.densities import Potential, plot_sample
+from tomato.densities import Potential, plot_sample, plot_potential
 from tomato.layers import planar_flow
 from tomato.utils import mvn_std_logpdf
 
@@ -55,7 +55,10 @@ def main(num_flows, num_iter, batch_size, potential):
     num_samples = 100000
     z_0 = np.random.normal(size=(num_samples, num_features))
     z_k = flow(z_0)
-    plot_sample(z_k, num_flows)
+
+    _fig, (ax1, ax2) = plt.subplots(2, sharex=True, sharey=True)
+    plot_potential(p.compile(), where=ax1)
+    plot_sample(z_k, num_flows, where=ax2)
     plt.show()
 
 
