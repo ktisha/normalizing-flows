@@ -1,6 +1,9 @@
 import numpy as np
 import theano.tensor as T
 
+import time
+
+
 def logaddexp(X, Y):
     """Accurately computes ``log(exp(X) + exp(Y))``."""
     XY_max = T.maximum(X, Y)
@@ -38,7 +41,6 @@ def mvn_log_logpdf(X, mean, log_covar):
                   + T.square((X - mean)) / T.exp(log_covar)).sum(axis=1)
 
 
-
 def mvn_std_logpdf(X):
     return -.5 * (T.log(2 * np.pi) + T.square(X)).sum(axis=1)
 
@@ -52,3 +54,21 @@ def iter_minibatches(X, y, batch_size):
         hi = (i + 1) * batch_size
         batch = indices[lo:hi]
         yield X[batch], y[batch]
+
+
+class stopwatch:
+    def __init__(self):
+        self.result = None
+
+    def __enter__(self):
+        self.start_time = time.perf_counter()
+
+    def __exit__(self, *exc_info):
+        self.result = time.perf_counter() - self.start_time
+        del self.start_time
+
+    def __str__(self):
+        if self.result is None:
+            return "unknown"
+        else:
+            return "{:.3f}s".format(self.result)

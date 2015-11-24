@@ -1,7 +1,6 @@
 import argparse
 import pickle
 import re
-import time
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -19,7 +18,8 @@ from lasagne.utils import floatX as as_floatX
 
 from tomato.datasets import load_mnist_dataset
 from tomato.layers import GaussianNoiseLayer
-from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
+from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
+    stopwatch
 
 
 def build_model(batch_size, num_features, num_latent, num_hidden):
@@ -108,7 +108,7 @@ def plot_sample(path):
     [chunk] = re.findall(r"vae_mnist_L(\d+)_H(\d+)", str(path))
     num_latent, _ = map(int, chunk)
 
-    z = np.random.normal(size=(n_samples, num_latent)).astype(theano.config.floatX)
+    z = as_floatX(np.random.normal(size=(n_samples, num_latent)))
     for i, z_i in enumerate(z, 1):
         mu, covar = z_mu(z_i), z_covar(z_i)
         x = np.random.normal(mu, covar)
@@ -151,24 +151,23 @@ def main(num_latent, num_hidden, batch_size, num_epochs):
     val_nelbo = theano.function([X_var], -elbo_val)
 
     print("Starting training...")
+    sw = stopwatch()
     train_errs = []
     val_errs = []
     for epoch in range(num_epochs):
-        start_time = time.perf_counter()
+        with sw:
+            train_err, train_batches = 0, 0
+            for Xb, yb in iter_minibatches(X_train, y_train,
+                                           batch_size=batch_size):
+                train_err += train_nelbo(Xb)
+                train_batches += 1
 
-        train_err, train_batches = 0, 0
-        for Xb, yb in iter_minibatches(X_train, y_train,
-                                       batch_size=batch_size):
-            train_err += train_nelbo(Xb)
-            train_batches += 1
+            val_err, val_batches = 0, 0
+            for Xb, yb in iter_minibatches(X_val, y_val, batch_size=batch_size):
+                val_err += val_nelbo(Xb)
+                val_batches += 1
 
-        val_err, val_batches = 0, 0
-        for Xb, yb in iter_minibatches(X_val, y_val, batch_size=batch_size):
-            val_err += val_nelbo(Xb)
-            val_batches += 1
-
-        print("Epoch {} of {} took {:.3f}s".format(
-            epoch + 1, num_epochs, time.perf_counter() - start_time))
+        print("Epoch {} of {} took {}".format(epoch + 1, num_epochs, sw))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
         train_errs.append(train_err)
@@ -188,20 +187,6 @@ def main(num_latent, num_hidden, batch_size, num_epochs):
         concat([net["x_mu"], net["x_log_covar"]]))
     with open(prefix + ".pickle", "wb") as handle:
         pickle.dump(all_param_values, handle)
-
-
-def plot_errors(path):
-    plot_name=str(path.with_name(path.stem + "_train_val_errors.png"))
-    errors = np.genfromtxt(str(path), delimiter=',')
-    fig, ax = plt.subplots()
-    ax.set_ylim([-100000, 20000])
-    train_errors = errors[1:, 0]
-    val_errors = errors[1:, 1]
-
-    ax.scatter(range(len(train_errors)), train_errors, s=4, color="blue", label="train error")
-    ax.scatter(range(len(train_errors)), val_errors, s=4, color="red", label="test error")
-    plt.legend()
-    fig.savefig(plot_name)
 
 
 if __name__ == "__main__":

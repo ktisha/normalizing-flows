@@ -1,7 +1,6 @@
 import argparse
 import pickle
 import re
-import time
 from pathlib import Path
 
 import matplotlib.cm as cm
@@ -13,14 +12,15 @@ import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, FeaturePoolLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat
-from lasagne.nonlinearities import identity, sigmoid, rectify
+from lasagne.nonlinearities import identity, rectify
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
 from tomato.datasets import load_mnist_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.layers import planar_flow
-from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches
+from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
+    stopwatch
 
 
 maxout = FeaturePoolLayer
@@ -110,28 +110,26 @@ def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs):
                                 givens={beta_var: as_floatX(1)})
 
     print("Starting training...")
+    sw = stopwatch()
     train_errs = []
     val_errs = []
     for epoch in range(num_epochs):
-        start_time = time.perf_counter()
+        with sw:
+            train_err, train_batches = 0, 0
+            # Causes ELBO to go to infinity. Should investigate further.
+            # beta = min(1, 0.01 + float(epoch) / num_epochs)
+            beta = 1
+            for Xb, yb in iter_minibatches(X_train, y_train, batch_size):
+                train_err += train_nelbo(Xb, beta)
+                train_batches += 1
 
-        train_err, train_batches = 0, 0
-        # Causes ELBO to go to infinity. Should investigate further.
-        # beta = min(1, 0.01 + float(epoch) / num_epochs)
-        beta = 1
-        for Xb, yb in iter_minibatches(X_train, y_train,
-                                       batch_size=batch_size):
-            train_err += train_nelbo(Xb, beta)
-            train_batches += 1
-
-        val_err, val_batches = 0, 0
-        for Xb, yb in iter_minibatches(X_val, y_val, batch_size=batch_size):
-            val_err += val_nelbo(Xb)
-            val_batches += 1
+            val_err, val_batches = 0, 0
+            for Xb, yb in iter_minibatches(X_val, y_val, batch_size):
+                val_err += val_nelbo(Xb)
+                val_batches += 1
 
         assert not np.isnan(train_err) and not np.isnan(val_err)
-        print("Epoch {} of {} took {:.3f}s".format(
-            epoch + 1, num_epochs, time.perf_counter() - start_time))
+        print("Epoch {} of {} took {}s".format(epoch + 1, num_epochs, sw))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
 
@@ -174,7 +172,8 @@ def load_model(path):
 def plot_manifold(path, num_steps):
     net = load_model(path)
     z_var = T.matrix()
-    decoder = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
+    decoder = theano.function(
+        [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
 
     figure = plt.figure()
 
@@ -182,7 +181,7 @@ def plot_manifold(path, num_steps):
     Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
 
     for (i, z_i) in enumerate(Zgrid, 1):
-        figure.add_subplot(num_subplots, num_subplots, i)
+        figure.add_subplot(num_steps, num_steps, i)
         image = decoder(np.array([z_i])).reshape((28, 28))
         plt.axis('off')
         plt.imshow(image, cmap=cm.Greys)
@@ -200,13 +199,15 @@ def plot_sample(path, num_samples):
     z_covar = theano.function(
         [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
 
+    [chunk] = re.findall(r"L(\d+)_H(\d+)", str(path))
+    num_latent, _ = map(int, chunk)
+
     figure = plt.figure()
 
     num_subplots = int(np.sqrt(num_samples))
-    z = np.random.normal(size=(num_samples, 2)).astype(theano.config.floatX)
+    z = as_floatX(np.random.normal(size=(num_samples, num_latent)))
     for i, z_i in enumerate(z, 1):
-        mu, covar = z_mu(np.array([z_i])), z_covar(np.array([z_i]))
-        x = np.random.normal(mu, covar)
+        x = np.random.normal(z_mu(np.array([z_i])), z_covar(np.array([z_i])))
         figure.add_subplot(num_subplots, num_subplots, i)
         plt.axis("off")
         plt.imshow(x.reshape((28, 28)), cmap=cm.Greys)
