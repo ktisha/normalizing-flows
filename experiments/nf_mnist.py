@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import theano
 import theano.tensor as T
-from lasagne.layers import InputLayer, DenseLayer, FeaturePoolLayer, \
+from lasagne.layers import InputLayer, DenseLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat
 from lasagne.nonlinearities import identity, rectify
@@ -23,13 +23,8 @@ from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
     stopwatch
 
 
-maxout = FeaturePoolLayer
-
-
 def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
     net = {}
-
-    pool_size = num_hidden // 100
 
     # q(z|x)
     net["enc_input"] = InputLayer((batch_size, num_features))
@@ -128,18 +123,12 @@ def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
-        assert not np.isnan(train_err) and not np.isnan(val_err)
-        print("Epoch {} of {} took {}s".format(epoch + 1, num_epochs, sw))
+        print("Epoch {} of {} took {}".format(epoch + 1, num_epochs, sw))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
-
+        assert not np.isnan(train_err) and not np.isnan(val_err)
         train_errs.append(train_err)
         val_errs.append(val_err)
-
-        threshold = np.mean(val_errs[:100])
-        if len(val_errs) >= 250 and val_err > threshold:
-            print("Stopped early {} > {}!".format(val_err, threshold))
-            break
 
     prefix = "nf_mnist_L{}_H{}_F{}".format(num_latent, num_hidden, num_flows)
     pd.DataFrame.from_dict({
