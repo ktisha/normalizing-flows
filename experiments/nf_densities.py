@@ -34,9 +34,9 @@ def main(num_flows, num_iter, batch_size, potential):
     kl = (log_q + p(z_k_var)).mean()
 
     params = get_all_params(net["z_k"], trainable=True)
-    updates = adam(-kl, params)
+    updates = adam(kl, params)
 
-    train_step = theano.function([z_0_var], -kl, updates=updates)
+    train_step = theano.function([z_0_var], kl, updates=updates)
     flow = theano.function([z_0_var], z_k_var)
 
     print("Starting training...")
