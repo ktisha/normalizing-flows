@@ -4,6 +4,7 @@ from urllib.request import urlretrieve
 
 import numpy as np
 from lasagne.utils import floatX as as_floatX
+from scipy.io import loadmat
 
 
 # Absolute path to the data directory.
@@ -31,8 +32,7 @@ def load_mnist_dataset(continuous=False):
         data = data.reshape(-1, 1, 28, 28)
         data = data / as_floatX(256)  # Convert to [0, 1].
         if not continuous:
-            data[data <= 0.5] = 0
-            data[data > 0.5] = 1
+            data = np.where(data <= 0.5, 0, 1)
         return data.reshape(-1, 28 * 28)
 
     def load_mnist_labels(path):
@@ -52,3 +52,18 @@ def load_mnist_dataset(continuous=False):
     y_train, y_val = y_train[:-10000], y_train[-10000:]
 
     return X_train, y_train, X_val, y_val, X_test, y_test
+
+
+def load_frey_dataset(continuous=False):
+    path = DATA_ROOT / "frey_rawface.mat"
+    if not path.exists():
+        urlretrieve("http://www.cs.nyu.edu/~roweis/data/frey_rawface.mat",
+                    str(path))
+
+    X = loadmat(str(path))["ff"]
+    X = X.T / as_floatX(256)  # Convert to [0, 1].
+    if not continuous:
+        X = np.where(X <= 0.5, 0, 1)
+
+    X_train, X_val = X[:-500], X[-500:]
+    return X_train, X_val
