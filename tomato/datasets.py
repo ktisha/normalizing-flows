@@ -51,7 +51,8 @@ def load_mnist_dataset(continuous=False):
     X_train, X_val = X_train[:-10000], X_train[-10000:]
     y_train, y_val = y_train[:-10000], y_train[-10000:]
 
-    return X_train, y_train, X_val, y_val, X_test, y_test
+    # Don't use test data (we use val for this) and labels.
+    return X_train, X_val
 
 
 def load_frey_dataset(continuous=False):

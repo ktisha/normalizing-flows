@@ -15,7 +15,7 @@ from lasagne.nonlinearities import identity, rectify, sigmoid, tanh
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
-from tomato.datasets import load_mnist_dataset
+from tomato.datasets import load_mnist_dataset as load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.layers import planar_flow
 from tomato.plot_utils import plot_manifold, plot_sample
@@ -24,7 +24,9 @@ from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
 
 np.random.seed(42)
 
-def build_model(batch_size, num_features, num_latent, num_hidden, num_flows, continuous=False):
+
+def build_model(batch_size, num_features, num_latent, num_hidden, num_flows,
+                continuous=False):
     activation = identity if continuous else sigmoid
 
     net = {}
@@ -70,9 +72,11 @@ def elbo_nf(X_var, x_mu_var, x_log_covar_var,
         - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var) - logdet_var)
     )
 
-def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs, continuous=False):
+
+def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs,
+              continuous=False):
     print("Loading data...")
-    X_train, y_train, X_val, y_val, X_test, y_test = load_mnist_dataset()
+    X_train, X_val = load_dataset()
     num_features = X_train.shape[1]
 
     print("Building model and compiling functions...")
@@ -100,8 +104,8 @@ def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs, continu
                        z_0_var, z_k_var, z_mu_var, z_log_covar_var,
                        sum(logdet_vars), beta_var, continuous)
 
-
-    layer = concat([net["x_mu"], net["x_log_covar"]]) if continuous else [net["x_mu"]]
+    layer = (concat([net["x_mu"], net["x_log_covar"]]) if continuous else
+             [net["x_mu"]])
     params = get_all_params(layer, trainable=True)
 
     updates = adam(-elbo_train, params)
@@ -148,7 +152,7 @@ def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs, continu
 
 def load_model(path):
     print("Loading data...")
-    X_train, *_rest = load_mnist_dataset()
+    X_train, *_rest = load_dataset()
     num_features = X_train.shape[1]
 
     [chunk] = re.findall(r"nf_mnist_L(\d+)_H(\d+)_F(\d+)", str(path))

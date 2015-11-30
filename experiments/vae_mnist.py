@@ -14,7 +14,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
 from lasagne.nonlinearities import rectify, identity, sigmoid, tanh
 from lasagne.updates import adam
 
-from tomato.datasets import load_mnist_dataset
+from tomato.datasets import load_mnist_dataset as load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
@@ -22,7 +22,8 @@ from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
 
 np.random.seed(42)
 
-def build_model(batch_size, num_features, num_latent, num_hidden, continuous=False):
+def build_model(batch_size, num_features, num_latent, num_hidden,
+                continuous=False):
     activation = identity if continuous else sigmoid
 
     net = {}
@@ -50,7 +51,9 @@ def build_model(batch_size, num_features, num_latent, num_hidden, continuous=Fal
                                     nonlinearity=identity)
     return net
 
-def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var, continuous=False):
+
+def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var,
+         continuous=False):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var) if continuous \
         else -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
@@ -79,12 +82,13 @@ def load_model(path):
 
 def fit_model(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
     print("Loading data...")
-    X_train, y_train, X_val, y_val, X_test, y_test = load_mnist_dataset(continuous)
+    X_train, X_val = load_mnist_dataset(continuous)
     num_features = X_train.shape[1]
 
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
-    net = build_model(batch_size, num_features, num_latent, num_hidden, continuous)
+    net = build_model(batch_size, num_features, num_latent, num_hidden,
+                      continuous)
 
     vars = ["x_mu", "x_log_covar", "z", "z_mu", "z_log_covar"]
     x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var = get_output(
@@ -102,7 +106,8 @@ def fit_model(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
     elbo_val = elbo(X_var, x_mu_var, x_log_covar_var,
                     z_var, z_mu_var, z_log_covar_var, continuous)
 
-    layer = concat([net["x_mu"], net["x_log_covar"]]) if continuous else [net["x_mu"]]
+    layer = (concat([net["x_mu"], net["x_log_covar"]]) if continuous else
+             [net["x_mu"]])
     params = get_all_params(layer, trainable=True)
 
     updates = adam(-elbo_train, params, learning_rate=1e-3)
@@ -168,9 +173,9 @@ if __name__ == "__main__":
     sample_parser = subparsers.add_parser("sample")
     sample_parser.add_argument("path", type=Path)
     sample_parser.add_argument("-N", dest="num_samples", type=int, default=256)
-    sample_parser.set_defaults(command=plot_sample, load_model=load_model, prefix="vae_mnist_L")
+    sample_parser.set_defaults(command=plot_sample, load_model=load_model,
+                               prefix="vae_mnist_L")
 
     args = vars(parser.parse_args())
     command = args.pop("command")
     command(**args)
-
