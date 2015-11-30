@@ -19,6 +19,7 @@ from lasagne.utils import floatX as as_floatX
 
 from tomato.datasets import load_mnist_dataset
 from tomato.layers import GaussianNoiseLayer
+from tomato.plot_utils import plot_manifold
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
     stopwatch
 
@@ -79,26 +80,6 @@ def load_model(path):
     return net
 
 
-def plot_manifold(path, num_steps=32):
-    net = load_model(path)
-    z_var = T.vector()
-    decoder = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
-
-    figure = plt.figure()
-
-    Z01 = np.linspace(-8, 8, num=num_steps)
-    Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
-
-    for (i, z_i) in enumerate(Zgrid, 1):
-        figure.add_subplot(num_steps, num_steps, i)
-        image = decoder(z_i).reshape((28, 28))
-        plt.axis('off')
-        plt.imshow(image, cmap=cm.Greys)
-
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(str(path.with_name("{}_manifold_{}.png".format(path.stem, num_steps))))
-
-
 def plot_sample(path):
     net = load_model(path)
     z_var = T.vector()
@@ -125,7 +106,7 @@ def plot_sample(path):
     plt.savefig(str(path.with_name(path.stem + "_sample.png")))
 
 
-def main(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
+def fit_model(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_mnist_dataset(continuous)
     num_features = X_train.shape[1]
@@ -196,13 +177,24 @@ def main(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Learn VAE from MNIST data")
-    parser.add_argument("-L", dest="num_latent", type=int, default=100)
-    parser.add_argument("-H", dest="num_hidden", type=int, default=500)
-    parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
-    parser.add_argument("-B", dest="batch_size", type=int, default=500)
-    parser.add_argument("-c", dest="continuous", type=bool, default=False)
+    subparsers = parser.add_subparsers(dest="command")
+    subparsers.required = True
 
-    # path = Path("vae_mnist_L2_H500.pickle")
-    # plot_manifold(path)
-    args = parser.parse_args()
-    main(**vars(args))
+    fit_parser = subparsers.add_parser("fit")
+    fit_parser.add_argument("-L", dest="num_latent", type=int, default=100)
+    fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
+    fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
+    fit_parser.add_argument("-c", dest="continuous", type=bool, default=False)
+
+    fit_parser.set_defaults(command=fit_model)
+
+    manifold_parser = subparsers.add_parser("manifold")
+    manifold_parser.add_argument("path", type=Path)
+    manifold_parser.add_argument("-N", dest="num_steps", type=int, default=32)
+    manifold_parser.set_defaults(command=plot_manifold, load_model=load_model)
+
+    args = vars(parser.parse_args())
+    command = args.pop("command")
+    command(**args)
+

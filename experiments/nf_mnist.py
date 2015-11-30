@@ -20,6 +20,7 @@ from lasagne.utils import floatX as as_floatX
 from tomato.datasets import load_mnist_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.layers import planar_flow
+from tomato.plot_utils import plot_manifold
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
     stopwatch
 
@@ -163,28 +164,6 @@ def load_model(path):
     return net
 
 
-def plot_manifold(path, num_steps):
-    net = load_model(path)
-    z_var = T.matrix()
-    decoder = theano.function(
-        [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
-
-    figure = plt.figure()
-
-    Z01 = np.linspace(-8, 8, num=num_steps)
-    Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
-
-    for (i, z_i) in enumerate(Zgrid, 1):
-        figure.add_subplot(num_steps, num_steps, i)
-        image = decoder(np.array([z_i])).reshape((28, 28))
-        plt.axis('off')
-        plt.imshow(image, cmap=cm.Greys)
-
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(str(path.with_name(
-        "{}_manifold_{}.png".format(path.stem, num_steps))))
-
-
 def plot_sample(path, num_samples):
     net = load_model(path)
     z_var = T.matrix()
@@ -223,12 +202,13 @@ if __name__ == "__main__":
     fit_parser.add_argument("-F", dest="num_flows", type=int, default=2)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
+    fit_parser.add_argument("-c", dest="continuous", type=bool, default=False)
     fit_parser.set_defaults(command=fit_model)
 
     manifold_parser = subparsers.add_parser("manifold")
     manifold_parser.add_argument("path", type=Path)
     manifold_parser.add_argument("-N", dest="num_steps", type=int, default=16)
-    manifold_parser.set_defaults(command=plot_manifold)
+    manifold_parser.set_defaults(command=plot_manifold, load_model=load_model)
 
     sample_parser = subparsers.add_parser("sample")
     sample_parser.add_argument("path", type=Path)
