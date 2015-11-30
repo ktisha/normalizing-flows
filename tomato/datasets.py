@@ -64,7 +64,7 @@ def load_frey_dataset(continuous=False):
     X = loadmat(str(path))["ff"]
     X = X.T / as_floatX(256)  # Convert to [0, 1].
     if not continuous:
-        X = np.where(X <= 0.5, 0, 1)
+        X = np.where(X <= 0.5, as_floatX(0), as_floatX(1))
 
     X_train, X_val = X[:-500], X[-500:]
     return X_train, X_val

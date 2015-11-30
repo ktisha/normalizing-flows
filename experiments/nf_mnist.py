@@ -15,7 +15,7 @@ from lasagne.nonlinearities import identity, rectify, sigmoid, tanh
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
-from tomato.datasets import load_mnist_dataset as load_dataset
+from tomato.datasets import load_frey_dataset as load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.layers import planar_flow
 from tomato.plot_utils import plot_manifold, plot_sample
@@ -124,12 +124,12 @@ def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs,
             # Causes ELBO to go to infinity. Should investigate further.
             # beta = min(1, 0.01 + float(epoch) / num_epochs)
             beta = 1
-            for Xb, yb in iter_minibatches(X_train, y_train, batch_size):
+            for Xb in iter_minibatches(X_train, batch_size):
                 train_err += train_nelbo(Xb, beta)
                 train_batches += 1
 
             val_err, val_batches = 0, 0
-            for Xb, yb in iter_minibatches(X_val, y_val, batch_size):
+            for Xb in iter_minibatches(X_val, batch_size):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 

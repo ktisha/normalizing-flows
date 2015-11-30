@@ -45,15 +45,14 @@ def mvn_std_logpdf(X):
     return -.5 * (T.log(2 * np.pi) + T.square(X)).sum(axis=1)
 
 
-def iter_minibatches(X, y, batch_size):
-    assert len(X) == len(y)
+def iter_minibatches(X, batch_size):
     indices = np.arange(len(X))
     np.random.shuffle(indices)
     for i in range(int(np.ceil(len(X) / batch_size))):
         lo = i * batch_size
         hi = (i + 1) * batch_size
         batch = indices[lo:hi]
-        yield X[batch], y[batch]
+        yield X[batch]
 
 
 class stopwatch:

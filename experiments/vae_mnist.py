@@ -14,7 +14,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
 from lasagne.nonlinearities import rectify, identity, sigmoid, tanh
 from lasagne.updates import adam
 
-from tomato.datasets import load_mnist_dataset as load_dataset
+from tomato.datasets import load_frey_dataset as load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
@@ -66,7 +66,7 @@ def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var,
 
 def load_model(path):
     print("Loading data...")
-    X_train, *_rest = load_mnist_dataset()
+    X_train, *_rest = load_dataset()
     num_features = X_train.shape[1]
 
     [chunk] = re.findall(r"vae_mnist_L(\d+)_H(\d+)", str(path))
@@ -82,7 +82,7 @@ def load_model(path):
 
 def fit_model(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
     print("Loading data...")
-    X_train, X_val = load_mnist_dataset(continuous)
+    X_train, X_val = load_dataset(continuous)
     num_features = X_train.shape[1]
 
     print("Building model and compiling functions...")
@@ -122,25 +122,21 @@ def fit_model(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
     for epoch in range(num_epochs):
         with sw:
             train_err, train_batches = 0, 0
-            for Xb, yb in iter_minibatches(X_train, y_train,
-                                           batch_size=batch_size):
+            for Xb in iter_minibatches(X_train, batch_size):
                 train_err += train_nelbo(Xb)
                 train_batches += 1
 
             val_err, val_batches = 0, 0
-            for Xb, yb in iter_minibatches(X_val, y_val, batch_size=batch_size):
+            for Xb in iter_minibatches(X_val, batch_size):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
         print("Epoch {} of {} took {}".format(epoch + 1, num_epochs, sw))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+        assert not np.isnan(train_err) and not np.isnan(val_err)
         train_errs.append(train_err)
         val_errs.append(val_err)
-
-        if len(val_errs) >= 250 and val_err > np.mean(val_errs[:100]):
-            print("Stopped early!")
-            break
 
     prefix = "vae_mnist_L{}_H{}".format(num_latent, num_hidden)
     np.savetxt(prefix + ".csv", np.column_stack([train_errs, val_errs]),
