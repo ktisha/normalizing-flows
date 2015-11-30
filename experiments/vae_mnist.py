@@ -52,12 +52,12 @@ def build_model(batch_size, num_features, num_latent, num_hidden, continuous=Fal
 
 def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var, continuous=False):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var).sum() if continuous \
-        else -binary_crossentropy(x_mu_var, X_var).sum()
+    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var) if continuous \
+        else -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
     return T.mean(
         logpxz
-        + mvn_std_logpdf(z_var).sum()
-        - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var).sum()
+        + mvn_std_logpdf(z_var)
+        - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var)
     )
 
 
@@ -91,6 +91,7 @@ def fit_model(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
         [net[var] for var in vars],
         X_var, deterministic=False
     )
+
     elbo_train = elbo(X_var, x_mu_var, x_log_covar_var,
                       z_var, z_mu_var, z_log_covar_var, continuous)
 

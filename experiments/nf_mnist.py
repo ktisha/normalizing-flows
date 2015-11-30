@@ -62,12 +62,12 @@ def elbo_nf(X_var, x_mu_var, x_log_covar_var,
             z_0_var, z_k_var, z_mu_var, z_log_covar_var,
             logdet_var, beta_t, continuous):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var).sum() if continuous \
-        else -binary_crossentropy(x_mu_var, X_var).sum()
+    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var) if continuous \
+        else -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
     return T.mean(
         beta_t * (logpxz
-                  + mvn_std_logpdf(z_k_var).sum())
-        - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var).sum() - logdet_var)
+                  + mvn_std_logpdf(z_k_var))
+        - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var) - logdet_var)
     )
 
 def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs, continuous=False):
