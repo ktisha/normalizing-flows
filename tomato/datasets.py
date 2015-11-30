@@ -13,7 +13,7 @@ if not DATA_ROOT.exists():
     DATA_ROOT.mkdir(parents=True)
 
 
-def load_mnist_dataset():
+def load_mnist_dataset(continuous=False):
     def download(path):
         print("Downloading {}".format(path))
         urlretrieve("http://yann.lecun.com/exdb/mnist/" + path.name, str(path))
@@ -30,6 +30,9 @@ def load_mnist_dataset():
         # (examples, channels, rows, columns)
         data = data.reshape(-1, 1, 28, 28)
         data = data / as_floatX(256)  # Convert to [0, 1].
+        if not continuous:
+            data[data <= 0.5] = 0
+            data[data > 0.5] = 1
         return data.reshape(-1, 28 * 28)
 
     def load_mnist_labels(path):

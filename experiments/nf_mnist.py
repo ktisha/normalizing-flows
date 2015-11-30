@@ -7,11 +7,13 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import theano
+from lasagne.objectives import binary_crossentropy
+
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat
-from lasagne.nonlinearities import identity, rectify
+from lasagne.nonlinearities import identity, rectify, sigmoid
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
@@ -21,8 +23,11 @@ from tomato.layers import planar_flow
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
     stopwatch
 
+np.random.seed(42)
 
-def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
+def build_model(batch_size, num_features, num_latent, num_hidden, num_flows, continuous=False):
+    activation = identity if continuous else sigmoid
+
     net = {}
 
     # q(z|x)
@@ -48,7 +53,7 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
                                     nonlinearity=rectify)
     # net["dec_hidden3"] = maxout(net["dec_hidden2"], pool_size)
     net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
-                             nonlinearity=identity)
+                             nonlinearity=activation)
     net["x_log_covar"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
                                     nonlinearity=identity)
     return net
@@ -56,16 +61,17 @@ def build_model(batch_size, num_features, num_latent, num_hidden, num_flows):
 
 def elbo_nf(X_var, x_mu_var, x_log_covar_var,
             z_0_var, z_k_var, z_mu_var, z_log_covar_var,
-            logdet_var, beta_t):
+            logdet_var, beta_t, continuous):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    return (
-        beta_t * (mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
-                  + mvn_std_logpdf(z_k_var))
-        - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var) - logdet_var)
-    ).mean()
+    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var).sum() if continuous \
+        else -binary_crossentropy(x_mu_var, X_var).sum()
+    return T.mean(
+        beta_t * (logpxz
+                  + mvn_std_logpdf(z_k_var).sum())
+        - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var).sum() - logdet_var)
+    )
 
-
-def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs):
+def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs, continuous=False):
     print("Loading data...")
     X_train, y_train, X_val, y_val, X_test, y_test = load_mnist_dataset()
     num_features = X_train.shape[1]
@@ -78,13 +84,13 @@ def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs):
 
     vars = ["x_mu", "x_log_covar", "z", "z_k", "z_mu", "z_log_covar"]
     (x_mu_var, x_log_covar_var, z_0_var,
-     z_k_var, z_mu_var, z_log_covar_var, *logdet_var) = get_output(
+     z_k_var, z_mu_var, z_log_covar_var, *logdet_vars) = get_output(
         [net[var] for var in vars] + net["logdet"],
         X_var, deterministic=False
     )
     elbo_train = elbo_nf(X_var, x_mu_var, x_log_covar_var,
                          z_0_var, z_k_var, z_mu_var, z_log_covar_var,
-                         sum(logdet_var), beta_var)
+                         sum(logdet_vars), beta_var, continuous)
 
     (x_mu_var, x_log_covar_var, z_0_var,
      z_k_var, z_mu_var, z_log_covar_var, *logdet_vars) = get_output(
@@ -93,10 +99,12 @@ def fit_model(num_latent, num_hidden, num_flows, batch_size, num_epochs):
     )
     elbo_val = elbo_nf(X_var, x_mu_var, x_log_covar_var,
                        z_0_var, z_k_var, z_mu_var, z_log_covar_var,
-                       sum(logdet_vars), beta_var)
+                       sum(logdet_vars), beta_var, continuous)
 
-    params = get_all_params(concat([net["x_mu"], net["x_log_covar"]]),
-                            trainable=True)
+
+    layer = concat([net["x_mu"], net["x_log_covar"]]) if continuous else [net["x_mu"]]
+    params = get_all_params(layer, trainable=True)
+
     updates = adam(-elbo_train, params)
     train_nelbo = theano.function([X_var, beta_var], -elbo_train,
                                   updates=updates)
@@ -163,7 +171,7 @@ def plot_manifold(path, num_steps):
 
     figure = plt.figure()
 
-    Z01 = np.linspace(-1, 1, num=num_steps)
+    Z01 = np.linspace(-8, 8, num=num_steps)
     Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
 
     for (i, z_i) in enumerate(Zgrid, 1):

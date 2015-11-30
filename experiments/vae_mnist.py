@@ -7,12 +7,14 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
 import theano
+from lasagne.objectives import binary_crossentropy
+
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
-from lasagne.nonlinearities import rectify, identity
-from lasagne.updates import rmsprop
+from lasagne.nonlinearities import rectify, identity, sigmoid, tanh
+from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
 from tomato.datasets import load_mnist_dataset
@@ -20,8 +22,11 @@ from tomato.layers import GaussianNoiseLayer
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
     stopwatch
 
+np.random.seed(42)
 
-def build_model(batch_size, num_features, num_latent, num_hidden):
+def build_model(batch_size, num_features, num_latent, num_hidden, continuous=False):
+    activation = identity if continuous else sigmoid
+
     net = {}
     # q(z|x)
     net["enc_input"] = InputLayer((batch_size, num_features))
@@ -42,19 +47,20 @@ def build_model(batch_size, num_features, num_latent, num_hidden):
     net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=num_hidden,
                                     nonlinearity=rectify)
     net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
-                             nonlinearity=identity)
+                             nonlinearity=activation)
     net["x_log_covar"] = DenseLayer(net["dec_hidden2"], num_units=num_features,
                                     nonlinearity=identity)
     return net
 
-
-def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var):
+def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var, continuous=False):
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    return (
-        mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
-        + mvn_std_logpdf(z_var)
-        - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var)
-    ).mean()
+    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var).sum() if continuous \
+        else -binary_crossentropy(x_mu_var, X_var).sum()
+    return T.mean(
+        logpxz
+        + mvn_std_logpdf(z_var).sum()
+        - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var).sum()
+    )
 
 
 def load_model(path):
@@ -73,24 +79,24 @@ def load_model(path):
     return net
 
 
-def plot_manifold(path):
+def plot_manifold(path, num_steps=32):
     net = load_model(path)
     z_var = T.vector()
     decoder = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
 
     figure = plt.figure()
 
-    Z01 = np.linspace(-1, 1, num=16)
+    Z01 = np.linspace(-8, 8, num=num_steps)
     Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
 
     for (i, z_i) in enumerate(Zgrid, 1):
-        figure.add_subplot(16, 16, i)
+        figure.add_subplot(num_steps, num_steps, i)
         image = decoder(z_i).reshape((28, 28))
         plt.axis('off')
         plt.imshow(image, cmap=cm.Greys)
 
     plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(str(path.with_name(path.stem + "_manifold.png")))
+    plt.savefig(str(path.with_name("{}_manifold_{}.png".format(path.stem, num_steps))))
 
 
 def plot_sample(path):
@@ -119,14 +125,14 @@ def plot_sample(path):
     plt.savefig(str(path.with_name(path.stem + "_sample.png")))
 
 
-def main(num_latent, num_hidden, batch_size, num_epochs):
+def main(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
     print("Loading data...")
-    X_train, y_train, X_val, y_val, X_test, y_test = load_mnist_dataset()
+    X_train, y_train, X_val, y_val, X_test, y_test = load_mnist_dataset(continuous)
     num_features = X_train.shape[1]
 
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
-    net = build_model(batch_size, num_features, num_latent, num_hidden)
+    net = build_model(batch_size, num_features, num_latent, num_hidden, continuous)
 
     vars = ["x_mu", "x_log_covar", "z", "z_mu", "z_log_covar"]
     x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var = get_output(
@@ -134,18 +140,20 @@ def main(num_latent, num_hidden, batch_size, num_epochs):
         X_var, deterministic=False
     )
     elbo_train = elbo(X_var, x_mu_var, x_log_covar_var,
-                      z_var, z_mu_var, z_log_covar_var)
+                      z_var, z_mu_var, z_log_covar_var, continuous)
 
     x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var = get_output(
         [net[var] for var in vars],
         X_var, deterministic=True
     )
     elbo_val = elbo(X_var, x_mu_var, x_log_covar_var,
-                    z_var, z_mu_var, z_log_covar_var)
+                    z_var, z_mu_var, z_log_covar_var, continuous)
 
-    params = get_all_params(concat([net["x_mu"], net["x_log_covar"]]),
-                            trainable=True)
-    updates = rmsprop(-elbo_train, params, learning_rate=1e-3)
+    layer = concat([net["x_mu"], net["x_log_covar"]]) if not continuous else [net["x_mu"]]
+    params = get_all_params(layer, trainable=True)
+
+    updates = adam(-elbo_train, params, learning_rate=1e-3)
+
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 
@@ -192,6 +200,7 @@ if __name__ == "__main__":
     parser.add_argument("-H", dest="num_hidden", type=int, default=500)
     parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
     parser.add_argument("-B", dest="batch_size", type=int, default=500)
+    parser.add_argument("-c", dest="continuous", type=bool, default=False)
 
     # path = Path("vae_mnist_L2_H500.pickle")
     # plot_manifold(path)
