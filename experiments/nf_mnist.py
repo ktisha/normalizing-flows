@@ -3,8 +3,6 @@ import pickle
 import re
 from pathlib import Path
 
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
 import numpy as np
 import theano
 from lasagne.objectives import binary_crossentropy
@@ -13,14 +11,14 @@ import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat
-from lasagne.nonlinearities import identity, rectify, sigmoid
+from lasagne.nonlinearities import identity, rectify, sigmoid, tanh
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 
 from tomato.datasets import load_mnist_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.layers import planar_flow
-from tomato.plot_utils import plot_manifold
+from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
     stopwatch
 
@@ -164,32 +162,6 @@ def load_model(path):
     return net
 
 
-def plot_sample(path, num_samples):
-    net = load_model(path)
-    z_var = T.matrix()
-    z_mu = theano.function(
-        [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
-    z_covar = theano.function(
-        [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
-
-    [chunk] = re.findall(r"L(\d+)_H(\d+)", str(path))
-    num_latent, _ = map(int, chunk)
-
-    figure = plt.figure()
-
-    num_subplots = int(np.sqrt(num_samples))
-    z = as_floatX(np.random.normal(size=(num_samples, num_latent)))
-    for i, z_i in enumerate(z, 1):
-        x = np.random.normal(z_mu(np.array([z_i])), z_covar(np.array([z_i])))
-        figure.add_subplot(num_subplots, num_subplots, i)
-        plt.axis("off")
-        plt.imshow(x.reshape((28, 28)), cmap=cm.Greys)
-
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(str(path.with_name(
-        "{}_sample_{}.png".format(path.stem, num_samples))))
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Learn NF-VAE from MNIST data")
@@ -213,7 +185,7 @@ if __name__ == "__main__":
     sample_parser = subparsers.add_parser("sample")
     sample_parser.add_argument("path", type=Path)
     sample_parser.add_argument("-N", dest="num_samples", type=int, default=256)
-    sample_parser.set_defaults(command=plot_sample)
+    sample_parser.set_defaults(command=plot_sample, load_model=load_model, prefix="L")
 
     args = vars(parser.parse_args())
     command = args.pop("command")

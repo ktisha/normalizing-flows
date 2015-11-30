@@ -3,8 +3,6 @@ import pickle
 import re
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import numpy as np
 import theano
 from lasagne.objectives import binary_crossentropy
@@ -15,11 +13,10 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     concat
 from lasagne.nonlinearities import rectify, identity, sigmoid, tanh
 from lasagne.updates import adam
-from lasagne.utils import floatX as as_floatX
 
 from tomato.datasets import load_mnist_dataset
 from tomato.layers import GaussianNoiseLayer
-from tomato.plot_utils import plot_manifold
+from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
     stopwatch
 
@@ -78,32 +75,6 @@ def load_model(path):
         set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
                              pickle.load(handle))
     return net
-
-
-def plot_sample(path):
-    net = load_model(path)
-    z_var = T.vector()
-    z_mu = theano.function(
-        [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
-    z_covar = theano.function(
-        [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
-
-    figure = plt.figure()
-
-    n_samples = 256
-    [chunk] = re.findall(r"vae_mnist_L(\d+)_H(\d+)", str(path))
-    num_latent, _ = map(int, chunk)
-
-    z = as_floatX(np.random.normal(size=(n_samples, num_latent)))
-    for i, z_i in enumerate(z, 1):
-        mu, covar = z_mu(z_i), z_covar(z_i)
-        x = np.random.normal(mu, covar)
-        figure.add_subplot(16, 16, i)
-        plt.axis("off")
-        plt.imshow(x.reshape((28, 28)), cmap=cm.Greys)
-
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(str(path.with_name(path.stem + "_sample.png")))
 
 
 def fit_model(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
@@ -186,13 +157,17 @@ if __name__ == "__main__":
     fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-c", dest="continuous", type=bool, default=False)
-
     fit_parser.set_defaults(command=fit_model)
 
     manifold_parser = subparsers.add_parser("manifold")
     manifold_parser.add_argument("path", type=Path)
     manifold_parser.add_argument("-N", dest="num_steps", type=int, default=32)
     manifold_parser.set_defaults(command=plot_manifold, load_model=load_model)
+
+    sample_parser = subparsers.add_parser("sample")
+    sample_parser.add_argument("path", type=Path)
+    sample_parser.add_argument("-N", dest="num_samples", type=int, default=256)
+    sample_parser.set_defaults(command=plot_sample, load_model=load_model, prefix="vae_mnist_L")
 
     args = vars(parser.parse_args())
     command = args.pop("command")
