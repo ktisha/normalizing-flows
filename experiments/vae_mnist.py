@@ -101,7 +101,7 @@ def fit_model(num_latent, num_hidden, batch_size, num_epochs, continuous=False):
     elbo_val = elbo(X_var, x_mu_var, x_log_covar_var,
                     z_var, z_mu_var, z_log_covar_var, continuous)
 
-    layer = concat([net["x_mu"], net["x_log_covar"]]) if not continuous else [net["x_mu"]]
+    layer = concat([net["x_mu"], net["x_log_covar"]]) if continuous else [net["x_mu"]]
     params = get_all_params(layer, trainable=True)
 
     updates = adam(-elbo_train, params, learning_rate=1e-3)
