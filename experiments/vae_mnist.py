@@ -45,8 +45,6 @@ class Params(namedtuple("Params", [
 
 
 def build_model(p):
-    activation = identity if p.continuous else sigmoid
-
     net = {}
     # q(z|x)
     net["enc_input"] = InputLayer((p.batch_size, p.num_features))
@@ -66,19 +64,35 @@ def build_model(p):
                                     nonlinearity=rectify)
     net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=p.num_hidden,
                                     nonlinearity=rectify)
-    net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=p.num_features,
-                             nonlinearity=activation)
-    net["x_log_covar"] = DenseLayer(net["dec_hidden2"],
-                                    num_units=p.num_features,
-                                    nonlinearity=identity)
+
+    if p.continuous:
+        net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=p.num_features,
+                                 nonlinearity=identity)
+        net["x_log_covar"] = DenseLayer(net["dec_hidden2"],
+                                        num_units=p.num_features,
+                                        nonlinearity=identity)
+
+        net["dec_output"] = concat([net["x_mu"], net["x_log_covar"]])
+    else:
+        net["dec_output"] = net["x_mu"] = DenseLayer(
+            net["dec_hidden2"], num_units=p.num_features,
+            nonlinearity=sigmoid)
     return net
 
 
-def elbo(X_var, x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var,
-         continuous=False):
+def elbo(X_var, net, p, **kwargs):
+    x_mu_var = get_output(net["x_mu"], X_var, **kwargs)
+    z_var = get_output(net["z"], X_var, **kwargs)
+    z_mu_var = get_output(net["z_mu"], X_var, **kwargs)
+    z_log_covar_var = get_output(net["z_log_covar"], X_var, **kwargs)
+
+    if p.continuous:
+        x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)
+        logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+    else:
+        logpxz = -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
+
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var) if continuous \
-        else -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
     return T.mean(
         logpxz
         + mvn_std_logpdf(z_var)
@@ -90,8 +104,7 @@ def load_model(path):
     print("Building model and compiling functions...")
     net = build_model(Params.from_path(str(path)))
     with path.open("rb") as handle:
-        set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
-                             pickle.load(handle))
+        set_all_param_values(net["dec_output"], pickle.load(handle))
     return net
 
 
@@ -107,28 +120,11 @@ def fit_model(**kwargs):
     X_var = T.matrix("X")
     net = build_model(p)
 
-    vars = ["x_mu", "x_log_covar", "z", "z_mu", "z_log_covar"]
-    x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var = get_output(
-        [net[var] for var in vars],
-        X_var, deterministic=False
-    )
+    elbo_train = elbo(X_var, net, p, deterministic=False)
+    elbo_val = elbo(X_var, net, p, deterministic=True)
 
-    elbo_train = elbo(X_var, x_mu_var, x_log_covar_var,
-                      z_var, z_mu_var, z_log_covar_var, p.continuous)
-
-    x_mu_var, x_log_covar_var, z_var, z_mu_var, z_log_covar_var = get_output(
-        [net[var] for var in vars],
-        X_var, deterministic=True
-    )
-    elbo_val = elbo(X_var, x_mu_var, x_log_covar_var,
-                    z_var, z_mu_var, z_log_covar_var, p.continuous)
-
-    layer = (concat([net["x_mu"], net["x_log_covar"]]) if p.continuous else
-             [net["x_mu"]])
-    params = get_all_params(layer, trainable=True)
-
+    params = get_all_params(net["dec_output"], trainable=True)
     updates = adam(-elbo_train, params, learning_rate=1e-3)
-
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 
@@ -159,10 +155,8 @@ def fit_model(**kwargs):
     np.savetxt(prefix + ".csv", np.column_stack([train_errs, val_errs]),
                delimiter=",")
 
-    all_param_values = get_all_param_values(
-        concat([net["x_mu"], net["x_log_covar"]]))
     with open(prefix + ".pickle", "wb") as handle:
-        pickle.dump(all_param_values, handle)
+        pickle.dump(get_all_param_values(net["dec_output"]), handle)
 
 
 if __name__ == "__main__":
