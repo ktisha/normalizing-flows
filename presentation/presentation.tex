@@ -1,11 +1,20 @@
 %% -*- TeX-engine: luatex; ispell-dictionary: "english" -*-
 
 \documentclass[unicode,11pt]{beamer}
+
 \usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{bayesnet}
+\usetikzlibrary{arrows}
 
 \input{presentation-base}
 
-\title{\large{Variational Auto-Encoder. Normalizing flows}}
+\title{Variational Auto-Encoder and extensions}
+\author{S. Lebedev, E. Tuzova}
+\institute{JetBrains}
+\date{\today}
+
+%% Alternative title: variational auto-encoder + normalizing flows = ?
 
 \begin{document}
 
@@ -16,48 +25,73 @@
 
 % 2
 \begin{frame}[fragile]{Continuous latent variable model}
+  \begin{center}
+    \begin{tikzpicture}
+      \node[latent]            (z) {$\mathbf{z}$};
+      \node[obs, below=of z]   (x) {$\mathbf{x}$};
+      \node[const, right=of z] (t) {$\theta$};
+      \node[const, left=of x, xshift=2em]   (lfantom) {};
+      \node[const, right=of x, xshift=-2em] (rfantom) {};
+
+      \edge {z} {x};
+      \draw (x) edge [->,dashed,bend left=45] (z);
+      \edge {t} {x,z};
+
+      \plate {xz} {(x)(z)(lfantom)(rfantom)} {$~N$};
+    \end{tikzpicture}
+  \end{center}
+
 %  $X = \left\{ x^{(i)}\right\}_{i=1}^N~-$ dataset\\
   $x~-$ observed variables\\
   $z~-$ continuous latent variables\\
   $\theta~-$ model parameters\\
 %  $\phi~-$ variational parameters\\
   $p_{\theta}(x, z)~-$ joint probability density function\\
-%  ~\\
-%  \textcolor{darkred}{Goal}: Learn parameters $\theta$
-	
-  \begin{figure}[htbp]
-    \includegraphics[height=110pt, keepaspectratio = true]{images/model}   
-  \end{figure}
-  \tiny \textcolor{gray} {http://arxiv.org/pdf/1312.6114v10.pdf}
+
+  %% TODO: motivation for continuous latent variables? as in
+  %%       https://www.cs.toronto.edu/~hinton/csc2515/notes/lec7middle.pdf
+  %% TODO: examples of these models, PCA, factor analysis, linear regression.
 \end{frame}
 
 % 3
-\begin{frame}[fragile]{Practical notes}
-	\textcolor{darkred}{Problems}: 
+\begin{frame}[fragile]{Back to real life}
 	\begin{enumerate}
-	  \item Intractable posterior $p_{\theta}(z|x) = \frac{p_{\theta}(x|z) p_{\theta}(z)}{p_{\theta(x)}}$\\
-	  \item Intractable marginal likelihood $p_{\theta}(x) = \int {p_{\theta}(z) p_{\theta}(x|z) dz}$
-	  \item Integrals for any reasonable mean-field VB algorithm are intractable
-	  \item Large dataset, so batch optimization is too costly
-  \end{enumerate}	 
-	~\\
+    \item Evidence \emph{aka} marginal likelihood \sout{can be} is almost always
+      intractable
+      $$
+      p_{\theta}(x) = \int {p_{\theta}(z) p_{\theta}(x|z) dz}
+      $$
+    \item So is the posterior for latent variables
+      $$
+      p_{\theta}(z|x) = \frac{p_{\theta}(x|z) p_{\theta}(z)}{p_{\theta}(x)}
+      $$
+    \item Mean-field VB is not applicable because the integrals required are
+      intractable as well
+    \item The dataset is too large to work with at once $\rightarrow$
+      minibatches is the best we can do
+    \end{enumerate}
 \end{frame}
 
 % 4
 \begin{frame}[fragile]{Goals}
-  \begin{enumerate}
-    \item Efficient approximate ML or MAP estimation for the parameters $\theta$
-    \item Efficient approximate posterior inference of the latent variable $z$ given an observed value $x$
-for a choice of parameters $\theta$
-    \item Efficient approximate marginal inference of the variable $x$ 
-  \end{enumerate}
+  \begin{itemize}
+  % \item Basically, make it work no matter what.
+  \item \textbf{Efficiently} approximate
+    \begin{itemize}
+    \item ML or MAP estimate for the parameters $\theta$
+    \item the predictive posterior $p_{\theta}(z|x)$
+    \item the evidence $p_{\theta}(x)$
+    \end{itemize}
+  \end{itemize}
+  %% TODO: why each particular goal?
+  %% TODO: but HOW do we do all that? Sai no more. Variational inference to the rescue.
 \end{frame}
 
 %5
 \begin{frame}[fragile]{Variational inference}
   Introduce parametric model $q_{\phi}(z|x)$ with variational parameters $\phi$\\
   ~\\
-  \textcolor{darkred}{Idea}: Construct estimator of the variational lower bound which we can optimize jointly 
+  \textcolor{darkred}{Idea}: Construct estimator of the variational lower bound which we can optimize jointly
   w.r.t. $\phi$ and $\theta$\\
   ~\\
   Pro:
@@ -65,17 +99,17 @@ for a choice of parameters $\theta$
     \item Stochastic optimization
     \item Convergence
   \end{itemize}
-  
+
 \end{frame}
 
 % 6
 \begin{frame}[fragile]{Variational lower bound}
-	\begin{align*} 
+	\begin{align*}
 		\log {p_\theta (x)} &= \log \int {p_\theta (x|z) p_\theta(z) dz} \\
 		&= \log \int{ \frac{q_\phi (z|x)}{q_\phi (z|x)} p_\theta (x|z) p_{\theta}(z) dz} \\
-		&\ge -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p_{\theta}(z)] + \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)] 
+		&\ge -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p_{\theta}(z)] + \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)]
 		= \mathcal{L}(\theta, \phi; x)
-	\end{align*} 
+	\end{align*}
 
   \begin{itemize}
     \item $q(z|x)$ is not necessarily factorial
@@ -88,8 +122,8 @@ for a choice of parameters $\theta$
 
 % 7
 \begin{frame}[fragile]{AEVB}
-    
-  
+
+
   TODO
   % везде нейросети
   % переход к minibatch
@@ -100,7 +134,7 @@ for a choice of parameters $\theta$
 \begin{frame}[fragile]{Standart Monte-Carlo ELBO}
 %  \textcolor{darkred}{Problem}: Efficient computation of $\nabla_{\phi} \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)] $\\
 %  ~\\
-  $\nabla_{\phi} \mathbb{E}_{q_{\phi}} [f(z)] = \mathbb{E}_{q_{\phi}(z)} \left[ f(z) \nabla_{\phi} 
+  $\nabla_{\phi} \mathbb{E}_{q_{\phi}} [f(z)] = \mathbb{E}_{q_{\phi}(z)} \left[ f(z) \nabla_{\phi}
   \log q_{\phi}(z) \right] \simeq \frac{1}{L} \sum\limits_{l=1}^L f(z) \nabla_{\phi} \log q_{\phi}(z^{(l)})$\\
   ~\\
   where $z^{(l)} \sim q_{\phi}(z|x)$\\
@@ -113,23 +147,23 @@ for a choice of parameters $\theta$
   \textcolor{darkred}{Idea}: Alternative method for generating samples from $q_{\phi}(z|x)$
   ~\\
   \begin{enumerate}
-    \item $z \sim q_{\phi}(z|x)~-$ conditional distribution    
+    \item $z \sim q_{\phi}(z|x)~-$ conditional distribution
     \item Express $z$ as deterministic variable $z = g_{\phi}(\varepsilon, x)$\\
       where $\varepsilon$ is an auxiliary variable. $\varepsilon \sim p(\varepsilon)$
   \end{enumerate}
 ~\\
-  $\mathbb{E}_{q_{\phi}}[f(z)] = \mathbb{E}_{p_{\varepsilon}} \left[ f(g_{\phi}(\varepsilon, x)) \right] \simeq 
+  $\mathbb{E}_{q_{\phi}}[f(z)] = \mathbb{E}_{p_{\varepsilon}} \left[ f(g_{\phi}(\varepsilon, x)) \right] \simeq
   \frac{1}{L} \sum\limits_{l=1}^L f(g_{\phi}(\varepsilon^{(l)}, x))$
 \end{frame}
 
 % 10
 \begin{frame}[fragile]{Reparametrization trick. Gaussian case}
-  \begin{enumerate}    
+  \begin{enumerate}
     \item $q_\phi(z|x) = \mathcal{N}(z; \mu, \sigma^2)$
-    \item $z = \mu + \sigma\varepsilon$ ~~ where $\varepsilon \sim \mathcal{N}(0, 1)$ 
+    \item $z = \mu + \sigma\varepsilon$ ~~ where $\varepsilon \sim \mathcal{N}(0, 1)$
   \end{enumerate}
   ~\\
-  $\nabla_{\phi} \mathbb{E}_{q_{\phi}(z)} [f_{\theta}(z)] \Leftrightarrow 
+  $\nabla_{\phi} \mathbb{E}_{q_{\phi}(z)} [f_{\theta}(z)] \Leftrightarrow
   \mathbb{E}_{\mathcal{N}(\varepsilon| 0, 1)} [\nabla_{\phi} f_{\theta} (\mu + \sigma \varepsilon)]$
 \end{frame}
 
@@ -137,26 +171,26 @@ for a choice of parameters $\theta$
 \begin{frame}[fragile]{Algorithm}
   \begin{algorithmic}
     \State $\theta, \phi \gets$ initialize parameters
-    \Repeat 
-       \State $X^M \gets$ Random minibatch of $M$ datapoints 
+    \Repeat
+       \State $X^M \gets$ Random minibatch of $M$ datapoints
        \State $\varepsilon \gets$ Random samples from noise distribution $p(\varepsilon)$
        \State $g \gets \nabla_{\phi, \theta} \mathcal{L}^M(\theta, \phi; X^M, \varepsilon) $ Gradients of minibatch estimator
        \State $\theta, \phi \gets$ Update parameters using gradients $g$
     \Until {convergence of parameters $\theta$, $\phi$}\\
     \Return $\theta$, $\phi$
   \end{algorithmic}
-  
+
 \end{frame}
 
 % 12
 \begin{frame}[fragile]{VAE inference model}
   \textcolor{darkred}{The VAE approach}: introduce an inference model that
-  learns to approximate the intractable posterior by optimizing the variational lower bound: 
-  $$ \mathcal{L}(\theta, \phi, x) = -\mathbb{D}_{KL}[q_{\phi} (z|x) \parallel p(z)] + 
+  learns to approximate the intractable posterior by optimizing the variational lower bound:
+  $$ \mathcal{L}(\theta, \phi, x) = -\mathbb{D}_{KL}[q_{\phi} (z|x) \parallel p(z)] +
   \mathbb{E}_q [\log p_\theta (x|z)] $$
   We parameterize with another neural network:
   \begin{figure}[htbp]
-    \includegraphics[height=130pt, keepaspectratio = true]{images/vae}   
+    \includegraphics[height=130pt, keepaspectratio = true]{images/vae}
   \end{figure}
   \tiny \textcolor{gray}{http://videolectures.net/deeplearning2015\_courville\_autoencoder\_extension}
 \end{frame}
@@ -167,7 +201,7 @@ for a choice of parameters $\theta$
 
   \begin{itemize}
     \item Represent recognition model $q_{\phi}(z|x)$ as a probabilistic encoder.\\
-        Given a datapoint $x$ it produces a distribution over the possible values of the code $z$ 
+        Given a datapoint $x$ it produces a distribution over the possible values of the code $z$
         from which the datapoint $x$ could have been generated
     \item Represent $p_{\theta}(x|z)$ as a probabilistic decoder.\\
         Given a code $z$ it produces a distribution over the possible corresponding values of $x$
@@ -177,14 +211,14 @@ for a choice of parameters $\theta$
 % 14
 \begin{frame}[fragile]{Variational Auto-Encoder}
   $p_{\theta}(z) = \mathcal{N}(z;0, I)$\\
-  $p_{\theta}(x|z) ~-$ multivariate Gaussian, distribution parameters are computed from 
+  $p_{\theta}(x|z) ~-$ multivariate Gaussian, distribution parameters are computed from
   $z$ with a MLP\\
   $p_{\theta}(z|x) ~-$ intractable, takes on an approximate Gaussian form with an approximately diagonal covariance\\
   ~\\
   $q_{\phi}(z|x^{(i)}) = \log \mathcal{N}(z; \mu^{(i)}, \sigma^{2(i)} I) $\\
   $\mu^{(i)}, \sigma^{(i)} ~-$ outputs of the encoding MLP\\
   ~\\
-  $L(\theta, \phi; x^{(i)}) \simeq \frac{1}{2} \sum\limits_{j=1}^J (1 + \log ((\sigma_j^{(i)})^2) - 
+  $L(\theta, \phi; x^{(i)}) \simeq \frac{1}{2} \sum\limits_{j=1}^J (1 + \log ((\sigma_j^{(i)})^2) -
   (\mu_j^{(i)})^2 - (\sigma_j^{(i)})^2) + \frac{1}{L} \sum\limits_{l=1}^L \log p_{\theta} (x^{(i)}|z^{(i,l)})$\\
   where $z^{(i,l)} = \mu^{(i)} + \sigma^{(i)} \odot \varepsilon^{(l)}$ and $\varepsilon^{(l)} \sim \mathcal{N}(0,I)$
 \end{frame}
@@ -196,10 +230,10 @@ for a choice of parameters $\theta$
 
 % 16
 \begin{frame}[fragile]{Normalizing flows}
-  \textcolor{darkred}{Normalizing flows}: the transformation of a probability density through 
+  \textcolor{darkred}{Normalizing flows}: the transformation of a probability density through
   a sequence of invertible mappings.
   \begin{itemize}
-    \item By repeated application of the rule for random variable transformations, the initial 
+    \item By repeated application of the rule for random variable transformations, the initial
     density flows through the sequence of invertible mappings.
     \item At the end of the sequence, we have a valid probability distribution.
   \end{itemize}
@@ -209,13 +243,13 @@ for a choice of parameters $\theta$
 % 17
 \begin{frame}[fragile]{Normalizing flows}
   Transformation of random variables: $z' = f(z)$, $f^{-1}(z') = z$\\
-  $$q(z') = q(z) \left\vert \det \frac{\partial f^{-1}(z')}{\partial z'} \right\vert = 
+  $$q(z') = q(z) \left\vert \det \frac{\partial f^{-1}(z')}{\partial z'} \right\vert =
   q(z) \left\vert \det \frac{\partial f(z')}{\partial z'} \right\vert^{-1}$$\\
   Chaining together a sequence: $z_K = f_K \circ f_{K−1} \circ \cdots \circ f_2 \circ f_1(z_0)$\\
   $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert $$
 
   Law of the unconscious statistician:\\
-  $$\mathbb{E}_{q_K} \left[g(z_K)\right] = \mathbb{E}_{q_0} \left[ g(f_K \circ f_{K−1} \circ \cdots \circ f_2 
+  $$\mathbb{E}_{q_K} \left[g(z_K)\right] = \mathbb{E}_{q_0} \left[ g(f_K \circ f_{K−1} \circ \cdots \circ f_2
   \circ f_1(z_0)) \right] $$
 \end{frame}
 
@@ -223,20 +257,20 @@ for a choice of parameters $\theta$
 \begin{frame}[fragile]{Planar flow}
   \textcolor{darkred}{Family of transformations}: $f(z) = z + uh\left( w^T z + b \right)$\\
   ~\\
-  $$\left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z) 
+  $$\left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z)
   \right\vert ~~~\text{where}~~~ \psi(z) = h'(w^Tz + b)w$$ \\
   $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert 1 + u^T \psi(z) \right\vert $$\\
   ~\\
-  This flow modifies the initial density $q_0$ by applying a series of contractions and expansions in 
+  This flow modifies the initial density $q_0$ by applying a series of contractions and expansions in
   the direction perpendicular to the hyperplane $w^Tz+b = 0$.
-  
+
   % TODO: картиночки (применение потока + обучение потока)
 \end{frame}
 
 % 19
 \begin{frame}[fragile]{Radial flow}
   \textcolor{darkred}{Family of transformations}: \\
-  $f(z) = z + \beta h(\alpha, r)(z-z_0) ~~~\text{where}~~~ r = \vert z-z_0 \vert$, 
+  $f(z) = z + \beta h(\alpha, r)(z-z_0) ~~~\text{where}~~~ r = \vert z-z_0 \vert$,
   $h(\alpha, r) = \frac{1}{\alpha + r}$\\
   ~\\
   $\det \left\vert \frac{\partial f}{\partial z} \right\vert = [1 + \beta h(\alpha, r)]^{(d-1)}
@@ -253,36 +287,36 @@ for a choice of parameters $\theta$
 
 % 21
 \begin{frame}[fragile]{Variational lower bound}
-  \begin{align*} 
+  \begin{align*}
   \mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q_\phi(z|x)} \left[ \log p_\theta(x, z) - \log q_\phi(z | x) \right] \\
   &= \mathbb{E}_{q_K(z_K)} \left[ \log p(x, z_K) - \log q(z_K) \right] \\
-  &= \mathbb{E}_{q_0(z_0)} \left[ \log p(x, z_K) - \log q_0(z_0) + \sum_{k=1}^K \log \left\vert \det 
-  \frac{\partial f_k}  {\partial z_k} \right\vert \right] 
-  \end{align*} 
+  &= \mathbb{E}_{q_0(z_0)} \left[ \log p(x, z_K) - \log q_0(z_0) + \sum_{k=1}^K \log \left\vert \det
+  \frac{\partial f_k}  {\partial z_k} \right\vert \right]
+  \end{align*}
 \end{frame}
 
 % 22
 \begin{frame}[fragile]{Algorithm}
   \begin{algorithmic}
     \State $\theta, \phi \gets$ initialize parameters
-    \Repeat 
-       \State $X^M \gets$ Random minibatch of $M$ datapoints 
-       \State $z_0 \sim q_0(\bullet|x)$ 
-       \State $z_k \gets f_K \circ f_{K-1} \circ \cdots \circ f_1(z_0)$ 
+    \Repeat
+       \State $X^M \gets$ Random minibatch of $M$ datapoints
+       \State $z_0 \sim q_0(\bullet|x)$
+       \State $z_k \gets f_K \circ f_{K-1} \circ \cdots \circ f_1(z_0)$
        \State $L(x) \approx L(x, z_k)$
        \State $g \gets \nabla_{\phi, \theta} \mathcal{L}^M(\theta, \phi; X^M, \varepsilon) $ Gradients of minibatch estimator
        \State $\theta, \phi \gets$ Update parameters using gradients $g$
     \Until {convergence of parameters $\theta$, $\phi$}\\
     \Return $\theta$, $\phi$
   \end{algorithmic}
-  
+
 \end{frame}
 
 % 23
 \begin{frame}[fragile]{Algorithm}
   Normalizing flow integration into the VAE:\\
   \begin{figure}[htbp]
-    \includegraphics[height=130pt, keepaspectratio = true]{images/norFlow}   
+    \includegraphics[height=130pt, keepaspectratio = true]{images/norFlow}
   \end{figure}
   ~\\
   \tiny \textcolor{gray}{http://arxiv.org/pdf/1505.05770v4.pdf}
@@ -303,7 +337,7 @@ for a choice of parameters $\theta$
 
 % 26
 \begin{frame}[fragile]{Future experiments}
-  TODO 
+  TODO
 \end{frame}
 
 \end{document}
