@@ -133,8 +133,7 @@ def fit_model(**kwargs):
         with sw:
             train_err, train_batches = 0, 0
             # Causes ELBO to go to infinity. Should investigate further.
-            # beta = min(1, 0.01 + float(epoch) / p.num_epochs)
-            beta = 1
+            beta = min(1, 0.01 + float(monitor.epoch) / p.num_epochs)
             for Xb in iter_minibatches(X_train, p.batch_size):
                 train_err += train_nelbo(Xb, beta)
                 train_batches += 1

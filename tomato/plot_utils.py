@@ -74,4 +74,4 @@ def plot_errors(path):
     plt.ylabel("Error")
     plt.xlabel("Epoch")
     plt.legend(loc="best")
-    plt.savefig(str(path.with_suffix("_errors.png")))
+    plt.savefig(path.stem + "_errors.png")
