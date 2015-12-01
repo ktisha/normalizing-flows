@@ -176,7 +176,8 @@ if __name__ == "__main__":
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
     fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
-    fit_parser.add_argument("-c", dest="continuous", type=bool, default=False)
+    fit_parser.add_argument("-c", dest="continuous", action="store_true",
+                            default=False)
     fit_parser.set_defaults(command=fit_model)
 
     manifold_parser = subparsers.add_parser("manifold")
