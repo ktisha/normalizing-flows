@@ -68,3 +68,12 @@ def load_frey_dataset(continuous=False):
 
     X_train, X_val = X[:-500], X[-500:]
     return X_train, X_val
+
+
+def load_dataset(name):
+    if name == "mnist":
+        return load_mnist_dataset()
+    elif name == "frey":
+        return load_frey_dataset()
+    else:
+        raise ValueError(name)

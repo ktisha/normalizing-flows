@@ -28,25 +28,24 @@ def plot_manifold(path, load_model, bounds=(-4, 4), num_steps=32):
         images)
 
 
-def plot_sample(path, load_model, num_samples):
-    [chunk] = re.findall(r"L(\d+)_H\d+_([DC])", str(path))
-    num_latent = int(chunk[0])
-    continuous = chunk[-1] == "C"
-
+def plot_sample(path, load_model, load_params, num_samples):
+    p = load_params(str(path))
     net = load_model(path)
     z_var = T.matrix()
     z_mu = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
 
+    Z = as_floatX(np.random.normal(size=(num_samples, p.num_latent)))
+
     images = []
-    if continuous:
+    if p.continuous:
         z_covar = theano.function(
             [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
-        for z_i in as_floatX(np.random.normal(size=(num_samples, num_latent))):
+        for z_i in Z:
             mu = z_mu(np.array([z_i]))
             covar = z_covar(np.array([z_i]))
             images.append(np.random.normal(mu, covar).reshape((28, -1)))
     else:
-        for z_i in as_floatX(np.random.normal(size=(num_samples, num_latent))):
+        for z_i in Z:
             mu = z_mu(np.array([z_i]))
             images.append(np.random.binomial(1, mu).reshape(28, -1))
 
