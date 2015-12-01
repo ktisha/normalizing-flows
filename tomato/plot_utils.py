@@ -21,30 +21,34 @@ def plot_manifold(path, load_model, bounds=(-4, 4), num_steps=32):
 
     images = []
     for z_i in Zgrid:
-        images.append(decoder(np.array([z_i])).reshape((28, 20)))
+        images.append(decoder(np.array([z_i])).reshape((28, -1)))
 
     _plot_grid(
         path.with_name("{}_manifold_{}.png".format(path.stem, num_steps)),
         images)
 
 
-def plot_sample(path, load_model, num_samples, prefix):
+def plot_sample(path, load_model, num_samples):
+    [chunk] = re.findall(r"L(\d+)_H\d+_([DC])", str(path))
+    num_latent = int(chunk[0])
+    continuous = chunk[-1] == "C"
+
     net = load_model(path)
     z_var = T.matrix()
-    z_mu = theano.function(
-        [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
-    z_covar = theano.function(
-        [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
-
-    [chunk] = re.findall(prefix + r"(\d+)_H(\d+)", str(path))
-    num_latent, _ = map(int, chunk)
+    z_mu = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
 
     images = []
-    for z_i in as_floatX(np.random.normal(size=(num_samples, num_latent))):
-        mu = z_mu(np.array([z_i]))
-        # covar = z_covar(np.array([z_i]))
-        # images.append(np.random.normal(mu, covar).reshape((28, 20)))
-        images.append(np.random.binomial(1, mu).reshape(28, 20))
+    if continuous:
+        z_covar = theano.function(
+            [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
+        for z_i in as_floatX(np.random.normal(size=(num_samples, num_latent))):
+            mu = z_mu(np.array([z_i]))
+            covar = z_covar(np.array([z_i]))
+            images.append(np.random.normal(mu, covar).reshape((28, -1)))
+    else:
+        for z_i in as_floatX(np.random.normal(size=(num_samples, num_latent))):
+            mu = z_mu(np.array([z_i]))
+            images.append(np.random.binomial(1, mu).reshape(28, -1))
 
     _plot_grid(
         path.with_name("{}_sample_{}.png".format(path.stem, num_samples)),

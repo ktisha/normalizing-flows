@@ -69,11 +69,12 @@ def load_model(path):
     X_train, *_rest = load_dataset()
     num_features = X_train.shape[1]
 
-    [chunk] = re.findall(r"vae_mnist_L(\d+)_H(\d+)", str(path))
-    num_latent, num_hidden = map(int, chunk)
+    [chunk] = re.findall(r"vae_L(\d+)_H(\d+)_([DC])", str(path))
+    num_latent, num_hidden = map(int, chunk[:-1])
+    continuous = chunk[-1] == "C"
 
     print("Building model and compiling functions...")
-    net = build_model(1, num_features, num_latent, num_hidden)
+    net = build_model(1, num_features, num_latent, num_hidden, continuous)
     with path.open("rb") as handle:
         set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
                              pickle.load(handle))
@@ -169,8 +170,7 @@ if __name__ == "__main__":
     sample_parser = subparsers.add_parser("sample")
     sample_parser.add_argument("path", type=Path)
     sample_parser.add_argument("-N", dest="num_samples", type=int, default=256)
-    sample_parser.set_defaults(command=plot_sample, load_model=load_model,
-                               prefix="vae_mnist_L")
+    sample_parser.set_defaults(command=plot_sample, load_model=load_model)
 
     args = vars(parser.parse_args())
     command = args.pop("command")
