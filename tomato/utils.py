@@ -3,6 +3,8 @@ import theano.tensor as T
 
 import time
 
+from .plot_utils import plot_errors
+
 
 def logaddexp(X, Y):
     """Accurately computes ``log(exp(X) + exp(Y))``."""
@@ -55,7 +57,7 @@ def iter_minibatches(X, batch_size):
         yield X[batch]
 
 
-class stopwatch:
+class Stopwatch:
     def __init__(self):
         self.result = None
 
@@ -71,3 +73,30 @@ class stopwatch:
             return "unknown"
         else:
             return "{:.3f}s".format(self.result)
+
+
+class Monitor:
+    def __init__(self, num_epochs):
+        self.epoch = 0
+        self.num_epochs = num_epochs
+        self.train_errs = []
+        self.val_errs = []
+
+    def __bool__(self):
+        return self.epoch < self.num_epochs
+
+    def report(self, sw, train_err, train_batches, val_err, val_batches):
+        print("Epoch {} of {} took {}".format(self.epoch + 1, self.num_epochs,
+                                              sw))
+        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+        assert not np.isnan(train_err) and not np.isnan(val_err)
+        self.train_errs.append(train_err)
+        self.val_errs.append(val_err)
+        self.epoch += 1
+
+    def save(self, path):
+        np.savetxt(str(path),
+                   np.column_stack([self.train_errs, self.val_errs]),
+                   delimiter=",")
+        plot_errors(path)

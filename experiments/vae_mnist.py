@@ -18,7 +18,7 @@ from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
-    stopwatch
+    Stopwatch, Monitor
 
 np.random.seed(42)
 
@@ -32,12 +32,12 @@ class Params(namedtuple("Params", [
     def to_path(self):
         fmt = ("vae_{dataset}_B{batch_size}_E{num_epochs}_"
                "N{num_features}_L{num_latent}_H{num_hidden}_{flag}")
-        return fmt.format(flag="DC"[self.continuous], **self._asdict())
+        return Path(fmt.format(flag="DC"[self.continuous], **self._asdict()))
 
     @classmethod
     def from_path(cls, path):
         [(dataset, *chunks, dc)] = re.findall(
-            r"vae_(\w+)_B(\d+)_E(\d+)_N(\d+)_L(\d+)_H(\d+)_([DC])", path)
+            r"vae_(\w+)_B(\d+)_E(\d+)_N(\d+)_L(\d+)_H(\d+)_([DC])", str(path))
         (batch_size, num_epochs,
          num_features, num_latent, num_hidden) = map(int, chunks)
         return cls(dataset, batch_size, num_epochs, num_features, num_latent,
@@ -129,10 +129,9 @@ def fit_model(**kwargs):
     val_nelbo = theano.function([X_var], -elbo_val)
 
     print("Starting training...")
-    sw = stopwatch()
-    train_errs = []
-    val_errs = []
-    for epoch in range(p.num_epochs):
+    monitor = Monitor(p.num_epochs)
+    sw = Stopwatch()
+    while monitor:
         with sw:
             train_err, train_batches = 0, 0
             for Xb in iter_minibatches(X_train, p.batch_size):
@@ -144,18 +143,11 @@ def fit_model(**kwargs):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
-        print("Epoch {} of {} took {}".format(epoch + 1, p.num_epochs, sw))
-        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
-        assert not np.isnan(train_err) and not np.isnan(val_err)
-        train_errs.append(train_err)
-        val_errs.append(val_err)
+            monitor.report(sw, train_err, train_batches, val_err, val_batches)
 
-    prefix = p.to_path()
-    np.savetxt(prefix + ".csv", np.column_stack([train_errs, val_errs]),
-               delimiter=",")
-
-    with open(prefix + ".pickle", "wb") as handle:
+    path = p.to_path()
+    monitor.save(path.with_suffix(".csv"))
+    with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(get_all_param_values(net["dec_output"]), handle)
 
 

@@ -67,13 +67,11 @@ def _plot_grid(path, images):
 
 
 def plot_errors(path):
-    plot_name = str(path.with_name(path.stem + "_train_val_errors.png"))
     errors = np.genfromtxt(str(path), delimiter=',')
-    fig, ax = plt.subplots()
-    train_errors = errors[1:, 0]
-    val_errors = errors[1:, 1]
-
-    ax.scatter(range(len(train_errors)), train_errors, s=4, color="blue", label="train error")
-    ax.scatter(range(len(train_errors)), val_errors, s=4, color="red", label="test error")
-    plt.legend()
-    fig.savefig(plot_name)
+    epochs = np.arange(len(errors) - 1)
+    plt.plot(epochs, errors[1:, 0], "b-", label="Train")
+    plt.plot(epochs, errors[1:, 1], "r-", label="Test")
+    plt.ylabel("Error")
+    plt.xlabel("Epoch")
+    plt.legend(loc="best")
+    plt.savefig(str(path.with_suffix("_errors.png")))
