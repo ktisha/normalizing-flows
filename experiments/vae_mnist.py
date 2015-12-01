@@ -143,7 +143,7 @@ def fit_model(**kwargs):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
-            monitor.report(sw, train_err, train_batches, val_err, val_batches)
+        monitor.report(sw, train_err, train_batches, val_err, val_batches)
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))

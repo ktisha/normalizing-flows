@@ -10,7 +10,7 @@ import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat
-from lasagne.nonlinearities import identity, rectify, sigmoid, tanh
+from lasagne.nonlinearities import identity, rectify, sigmoid
 from lasagne.objectives import binary_crossentropy
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
@@ -20,7 +20,7 @@ from tomato.layers import GaussianNoiseLayer
 from tomato.layers import planar_flow
 from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
-    stopwatch
+    Stopwatch, Monitor
 
 np.random.seed(42)
 
@@ -35,7 +35,7 @@ class Params(namedtuple("Params", [
         fmt = ("nf_{dataset}_B{batch_size}_E{num_epochs}_"
                "N{num_features}_L{num_latent}_H{num_hidden}_"
                "F{num_flows}_{flag}")
-        return fmt.format(flag="DC"[self.continuous], **self._asdict())
+        return Path(fmt.format(flag="DC"[self.continuous], **self._asdict()))
 
     @classmethod
     def from_path(cls, path):
@@ -48,8 +48,6 @@ class Params(namedtuple("Params", [
 
 
 def build_model(p):
-    activation = identity if p.continuous else sigmoid
-
     net = {}
 
     # q(z|x)
@@ -58,7 +56,6 @@ def build_model(p):
                                     nonlinearity=rectify)
     net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=p.num_hidden,
                                     nonlinearity=rectify)
-    # net["enc_hidden3"] = maxout(net["enc_hidden2"], pool_size)
     net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
                              nonlinearity=identity)
     net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
@@ -73,25 +70,39 @@ def build_model(p):
                                     nonlinearity=rectify)
     net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=p.num_hidden,
                                     nonlinearity=rectify)
-    # net["dec_hidden3"] = maxout(net["dec_hidden2"], pool_size)
-    net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=p.num_features,
-                             nonlinearity=activation)
-    net["x_log_covar"] = DenseLayer(net["dec_hidden2"],
-                                    num_units=p.num_features,
-                                    nonlinearity=identity)
+
+    if p.continuous:
+        net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=p.num_features,
+                                 nonlinearity=identity)
+        net["x_log_covar"] = DenseLayer(net["dec_hidden2"],
+                                        num_units=p.num_features,
+                                        nonlinearity=identity)
+        net["dec_output"] = concat([net["x_mu"], net["x_log_covar"]])
+    else:
+        net["x_mu"] = net["dec_output"] = DenseLayer(
+            net["dec_hidden2"], num_units=p.num_features,
+            nonlinearity=sigmoid)
     return net
 
 
-def elbo_nf(X_var, x_mu_var, x_log_covar_var,
-            z_0_var, z_k_var, z_mu_var, z_log_covar_var,
-            logdet_var, beta_t, continuous):
+def elbo(X_var, beta_var, net, p, **kwargs):
+    x_mu_var = get_output(net["x_mu"], X_var, **kwargs)
+    z_0_var = get_output(net["z"], X_var, **kwargs)
+    z_k_var = get_output(net["z_k"], X_var, **kwargs)
+    z_mu_var = get_output(net["z_mu"], X_var, **kwargs)
+    z_log_covar_var = get_output(net["z_log_covar"], X_var, **kwargs)
+    logdet_sum_var = sum(get_output(net["logdet"], X_var, **kwargs))
+
+    if p.continuous:
+        x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)
+        logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+    else:
+        logpxz = -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
+
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var) if continuous \
-        else -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
     return T.mean(
-        beta_t * (logpxz
-                  + mvn_std_logpdf(z_k_var))
-        - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var) - logdet_var)
+        beta_var * (logpxz + mvn_std_logpdf(z_k_var))
+        - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var) - logdet_sum_var)
     )
 
 
@@ -105,29 +116,10 @@ def fit_model(**kwargs):
     beta_var = T.scalar("beta_t")  # Inverse temperature.
     net = build_model(p)
 
-    vars = ["x_mu", "x_log_covar", "z", "z_k", "z_mu", "z_log_covar"]
-    (x_mu_var, x_log_covar_var, z_0_var,
-     z_k_var, z_mu_var, z_log_covar_var, *logdet_vars) = get_output(
-        [net[var] for var in vars] + net["logdet"],
-        X_var, deterministic=False
-    )
-    elbo_train = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                         z_0_var, z_k_var, z_mu_var, z_log_covar_var,
-                         sum(logdet_vars), beta_var, p.continuous)
+    elbo_train = elbo(X_var, beta_var, net, p, deterministic=False)
+    elbo_val = elbo(X_var, beta_var, net, p, deterministic=True)
 
-    (x_mu_var, x_log_covar_var, z_0_var,
-     z_k_var, z_mu_var, z_log_covar_var, *logdet_vars) = get_output(
-        [net[var] for var in vars] + net["logdet"],
-        X_var, deterministic=True
-    )
-    elbo_val = elbo_nf(X_var, x_mu_var, x_log_covar_var,
-                       z_0_var, z_k_var, z_mu_var, z_log_covar_var,
-                       sum(logdet_vars), beta_var, p.continuous)
-
-    layer = (concat([net["x_mu"], net["x_log_covar"]]) if p.continuous else
-             [net["x_mu"]])
-    params = get_all_params(layer, trainable=True)
-
+    params = get_all_params(net["dec_output"], trainable=True)
     updates = adam(-elbo_train, params)
     train_nelbo = theano.function([X_var, beta_var], -elbo_train,
                                   updates=updates)
@@ -135,10 +127,9 @@ def fit_model(**kwargs):
                                 givens={beta_var: as_floatX(1)})
 
     print("Starting training...")
-    sw = stopwatch()
-    train_errs = []
-    val_errs = []
-    for epoch in range(p.num_epochs):
+    monitor = Monitor(p.num_epochs)
+    sw = Stopwatch()
+    while monitor:
         with sw:
             train_err, train_batches = 0, 0
             # Causes ELBO to go to infinity. Should investigate further.
@@ -153,20 +144,13 @@ def fit_model(**kwargs):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
-        print("Epoch {} of {} took {}".format(epoch + 1, p.num_epochs, sw))
-        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
-        assert not np.isnan(train_err) and not np.isnan(val_err)
-        train_errs.append(train_err)
-        val_errs.append(val_err)
+        monitor.report(sw, train_err, train_batches, val_err, val_batches)
 
-    prefix = p.to_path()
-    np.savetxt(prefix + ".csv", np.column_stack([train_errs, val_errs]),
-               delimiter=",")
-
+    path = p.to_path()
+    monitor.save(path.with_suffix(".csv"))
     all_param_values = get_all_param_values(
         concat([net["x_mu"], net["x_log_covar"]]))
-    with open(prefix + ".pickle", "wb") as handle:
+    with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(all_param_values, handle)
 
 
