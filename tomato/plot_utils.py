@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from lasagne.utils import floatX as as_floatX
 from matplotlib import cm
+from matplotlib.gridspec import GridSpec
 
 
-def plot_manifold(path, load_model, bounds=[-8, 8], num_steps=32):
+def plot_manifold(path, load_model, bounds=[-4, 4], num_steps=32):
     net = load_model(path)
     z_var = T.matrix()
     decoder = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
@@ -18,14 +19,17 @@ def plot_manifold(path, load_model, bounds=[-8, 8], num_steps=32):
     Z01 = np.linspace(*bounds, num=num_steps)
     Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
 
-    for (i, z_i) in enumerate(Zgrid, 1):
-        figure.add_subplot(num_steps, num_steps, i)
-        image = decoder(np.array([z_i])).reshape((28, 28))
-        plt.axis('off')
-        plt.imshow(image, cmap=cm.Greys)
+    gs = GridSpec(num_steps, num_steps)
+    gs.update(wspace=0.1, hspace=0.1, left=0.1, right=0.4, bottom=0.1, top=0.9)
+    for (i, z_i) in enumerate(Zgrid, 0):
+        plt.subplot(gs[i])
+        image = decoder(np.array([z_i])).reshape((28, 20))
+        plt.imshow(image, cmap=cm.Greys_r)
+        plt.axis("off")
 
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(str(path.with_name("{}_manifold_{}.png".format(path.stem, num_steps))))
+    plt.savefig(str(path.with_name("{}_manifold_{}.png"
+                                   .format(path.stem, num_steps))),
+                bbox_inches="tight")
 
 
 def plot_sample(path, load_model, num_samples, prefix):
