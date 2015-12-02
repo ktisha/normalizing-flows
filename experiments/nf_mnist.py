@@ -9,7 +9,7 @@ import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, \
     get_output, get_all_params, get_all_param_values, \
-    set_all_param_values, concat
+    set_all_param_values, concat, dropout
 from lasagne.nonlinearities import identity, rectify, sigmoid
 from lasagne.objectives import binary_crossentropy
 from lasagne.updates import adam
@@ -51,10 +51,11 @@ def build_model(p):
     net = {}
 
     # q(z|x)
-    net["enc_input"] = InputLayer((p.batch_size, p.num_features))
+    net["enc_input"] = InputLayer((None, p.num_features))
     net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
                                     nonlinearity=rectify)
-    net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=p.num_hidden,
+    net["enc_hidden2"] = DenseLayer(dropout(net["enc_hidden1"]),
+                                    num_units=p.num_hidden,
                                     nonlinearity=rectify)
     net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
                              nonlinearity=identity)
@@ -68,7 +69,8 @@ def build_model(p):
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=p.num_hidden,
                                     nonlinearity=rectify)
-    net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=p.num_hidden,
+    net["dec_hidden2"] = DenseLayer(dropout(net["dec_hidden1"]),
+                                    num_units=p.num_hidden,
                                     nonlinearity=rectify)
 
     if p.continuous:
@@ -120,7 +122,7 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, beta_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params)
+    updates = adam(-elbo_train, params, learning_rate=1e-4)
     train_nelbo = theano.function([X_var, beta_var], -elbo_train,
                                   updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val,
@@ -133,7 +135,8 @@ def fit_model(**kwargs):
         with sw:
             train_err, train_batches = 0, 0
             # Causes ELBO to go to infinity. Should investigate further.
-            beta = min(1, 0.01 + float(monitor.epoch) / p.num_epochs)
+            # beta = min(1, 0.01 + float(monitor.epoch) / p.num_epochs)
+            beta = 1
             for Xb in iter_minibatches(X_train, p.batch_size):
                 train_err += train_nelbo(Xb, beta)
                 train_batches += 1
