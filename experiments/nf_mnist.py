@@ -130,7 +130,7 @@ def fit_model(**kwargs):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
-        monitor.report(sw, train_err, train_batches, val_err, val_batches)
+        monitor.report(sw, train_err / train_batches, val_err / val_batches)
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
@@ -166,7 +166,8 @@ if __name__ == "__main__":
     manifold_parser = subparsers.add_parser("manifold")
     manifold_parser.add_argument("path", type=Path)
     manifold_parser.add_argument("-N", dest="num_steps", type=int, default=16)
-    manifold_parser.set_defaults(command=plot_manifold, load_model=load_model)
+    manifold_parser.set_defaults(command=plot_manifold, load_model=load_model,
+                                 load_params=Params.from_path)
 
     sample_parser = subparsers.add_parser("sample")
     sample_parser.add_argument("path", type=Path)

@@ -122,18 +122,19 @@ class Monitor:
         if self.epoch < self.tolerance:
             return True
 
-        # If the loss is decreasing, just continue, otherwise stop if
-        # it'd increased too much.
         mean_val_err = np.mean(self.val_errs[-self.tolerance:])
-        local_factor = self.val_errs[-1] / self.val_errs[-2]
-        global_factor = self.val_errs[-1] / mean_val_err
-        return bool(local_factor < 1.25 or global_factor < 1.5)
+        good_to_go = (self.val_errs[-2] > self.val_errs[-1] or
+                      self.val_errs[-1] / mean_val_err < 1.5)
+        if not good_to_go:
+            print("Stopped early: {} > {}"
+                  .format(self.val_errs[-1],  mean_val_err))
+        return bool(good_to_go)
 
-    def report(self, sw, train_err, train_batches, val_err, val_batches):
-        print("Epoch {} of {} took {}".format(self.epoch + 1, self.num_epochs,
-                                              sw))
-        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+    def report(self, sw, train_err, val_err):
+        print("Epoch {} of {} took {}"
+              .format(self.epoch + 1, self.num_epochs, sw))
+        print("  training loss:\t\t{:.6f}".format(train_err))
+        print("  validation loss:\t\t{:.6f}".format(val_err))
         assert not np.isnan(train_err) and not np.isnan(val_err)
         self.train_errs.append(train_err)
         self.val_errs.append(val_err)

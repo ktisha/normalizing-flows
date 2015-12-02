@@ -7,7 +7,8 @@ from PIL import Image
 from scipy import stats
 
 
-def plot_manifold(path, load_model, num_steps=32):
+def plot_manifold(path, load_model, load_params, num_steps):
+    p = load_params(str(path))
     net = load_model(path)
     z_var = T.matrix()
     decoder = theano.function(
@@ -22,7 +23,7 @@ def plot_manifold(path, load_model, num_steps=32):
 
     _plot_grid(
         path.with_name("{}_manifold_{}.png".format(path.stem, num_steps)),
-        images)
+        images, p.continuous)
 
 
 def plot_sample(path, load_model, load_params, num_samples):
@@ -51,20 +52,19 @@ def plot_sample(path, load_model, load_params, num_samples):
 
     _plot_grid(
         path.with_name("{}_sample_{}.png".format(path.stem, num_samples)),
-        images)
+        images, p.continuous)
 
 
-def _image_from_array(data):
-    return Image.fromarray(
-        (255.0 / data.max() * (data - data.min())).astype(np.uint8))
+def _image_from_array(data, continuous):
+    return Image.fromarray((255 * data).clip(0, 255).astype(np.uint8))
 
 
-def _plot_grid(path, images):
+def _plot_grid(path, images, continuous):
     num_subplots = int(np.sqrt(len(images)))
     height, width = images[0].shape
     im = Image.new("L", (width * num_subplots, height * num_subplots))
     for i, image in enumerate(images):
         x, y = divmod(i, num_subplots)
-        im.paste(_image_from_array(image), (x * width, y * height))
+        im.paste(_image_from_array(image, continuous), (x * width, y * height))
 
     im.save(str(path))
