@@ -76,14 +76,26 @@ class Stopwatch:
 
 
 class Monitor:
-    def __init__(self, num_epochs):
+    def __init__(self, num_epochs, tolerance=10):
         self.epoch = 0
         self.num_epochs = num_epochs
+        self.tolerance = tolerance
         self.train_errs = []
         self.val_errs = []
 
     def __bool__(self):
-        return self.epoch < self.num_epochs
+        if self.epoch == self.num_epochs:
+            return False
+
+        if self.epoch < self.tolerance:
+            return True
+
+        # If the loss is decreasing, just continue, otherwise stop if
+        # it'd increased too much.
+        mean_val_err = np.mean(self.val_errs[-self.tolerance:])
+        print(self.val_errs[-1], mean_val_err)
+        return bool(self.val_errs[-2] >= self.val_errs[-1] or
+                    self.val_errs[-1] / mean_val_err < 1.5)
 
     def report(self, sw, train_err, train_batches, val_err, val_batches):
         print("Epoch {} of {} took {}".format(self.epoch + 1, self.num_epochs,
