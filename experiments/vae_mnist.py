@@ -4,7 +4,6 @@ import re
 from collections import namedtuple
 from pathlib import Path
 
-import numpy as np
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
@@ -16,7 +15,7 @@ from lasagne.updates import adam
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample
-from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, bernoulli_logpmf, \
+from tomato.utils import mvn_log_logpdf, bernoulli_logpmf, kl_mvn_log_mvn_std, \
     iter_minibatches, Stopwatch, Monitor
 
 
@@ -44,7 +43,7 @@ class Params(namedtuple("Params", [
 def build_model(p):
     net = {}
     # q(z|x)
-    net["enc_input"] = InputLayer((p.batch_size, p.num_features))
+    net["enc_input"] = InputLayer((None, p.num_features))
     net["enc_hidden"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
     net["z_mu"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
@@ -75,22 +74,18 @@ def build_model(p):
 
 def elbo(X_var, net, p, **kwargs):
     x_mu_var = get_output(net["x_mu"], X_var, **kwargs)
-    z_var = get_output(net["z"], X_var, **kwargs)
     z_mu_var = get_output(net["z_mu"], X_var, **kwargs)
     z_log_covar_var = get_output(net["z_log_covar"], X_var, **kwargs)
 
     if p.continuous:
         x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)
-        logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+        log_px_z = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
     else:
-        logpxz = bernoulli_logpmf(X_var, x_mu_var)
+        log_px_z = bernoulli_logpmf(X_var, x_mu_var)
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    return T.mean(
-        logpxz
-        + mvn_std_logpdf(z_var)
-        - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var)
-    )
+    #      = E_q(z|x)[log p(x|z)] - KL[q(z|z)||p(z)]
+    return T.mean(log_px_z - kl_mvn_log_mvn_std(z_mu_var, z_log_covar_var))
 
 
 def load_model(path):
@@ -102,12 +97,10 @@ def load_model(path):
 
 
 def fit_model(**kwargs):
-    X_train, X_val = load_dataset(kwargs["dataset"])
+    print("Loading data...")
+    X_train, X_val = load_dataset(kwargs["dataset"], kwargs["continuous"])
     num_features = X_train.shape[1]  # XXX abstraction leak.
     p = Params(num_features=num_features, **kwargs)
-
-    print("Loading data...")
-    X_train, X_val = load_dataset(p.dataset)
 
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
@@ -117,7 +110,7 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params)
+    updates = adam(-elbo_train, params, learning_rate=1e-4)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 

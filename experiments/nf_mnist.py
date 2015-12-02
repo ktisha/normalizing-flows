@@ -99,7 +99,7 @@ def elbo(X_var, net, p, **kwargs):
 
 
 def fit_model(**kwargs):
-    X_train, X_val = load_dataset(kwargs["dataset"])
+    X_train, X_val = load_dataset(kwargs["dataset"], kwargs["continuous"])
     num_features = X_train.shape[1]  # XXX abstraction leak.
     p = Params(num_features=num_features, **kwargs)
 

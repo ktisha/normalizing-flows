@@ -73,6 +73,12 @@ def bernoulli_logpmf(X, p):
     return -T.nnet.binary_crossentropy(p, X).sum(axis=1)
 
 
+def kl_mvn_log_mvn_std(mean, log_covar):
+    # See Appendix A in the VAE paper.
+    return -.5 * ((1 + log_covar - T.square(mean) - T.exp(log_covar))
+                  .sum(axis=1))
+
+
 def iter_minibatches(X, batch_size):
     indices = np.arange(len(X))
     np.random.shuffle(indices)
