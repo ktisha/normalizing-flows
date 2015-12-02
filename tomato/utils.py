@@ -1,10 +1,11 @@
 import time
 
+import matplotlib
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
 import numpy as np
 import theano.tensor as T
-from lasagne.utils import floatX as as_floatX
-
-from .plot_utils import plot_errors
 
 
 def logaddexp(X, Y):
@@ -17,7 +18,7 @@ def logaddexp(X, Y):
 def logsumexp(X, axis=None):
     X_max = T.max(X, axis=axis)
     acc = T.log(T.sum(T.exp(X - X_max), axis=axis))
-    return X_max + T.log(T.exp(X - X_max).sum(axis=axis))
+    return X_max + T.log(acc)
 
 
 def mvn_logpdf(X, mean, covar):
@@ -101,7 +102,7 @@ class Stopwatch:
 
 
 class Monitor:
-    def __init__(self, num_epochs, tolerance=10):
+    def __init__(self, num_epochs, tolerance=25):
         self.epoch = 0
         self.num_epochs = num_epochs
         self.tolerance = tolerance
@@ -118,8 +119,9 @@ class Monitor:
         # If the loss is decreasing, just continue, otherwise stop if
         # it'd increased too much.
         mean_val_err = np.mean(self.val_errs[-self.tolerance:])
-        return bool(self.val_errs[-2] >= self.val_errs[-1] or
-                    self.val_errs[-1] / mean_val_err < 1.5)
+        local_factor = self.val_errs[-1] / self.val_errs[-2]
+        global_factor = self.val_errs[-1] / mean_val_err
+        return bool(local_factor < 1.25 or global_factor < 1.5)
 
     def report(self, sw, train_err, train_batches, val_err, val_batches):
         print("Epoch {} of {} took {}".format(self.epoch + 1, self.num_epochs,
@@ -135,7 +137,18 @@ class Monitor:
         np.savetxt(str(path),
                    np.column_stack([self.train_errs, self.val_errs]),
                    delimiter=",")
-        plot_errors(path)
+        _plot_errors(path)
+
+
+def _plot_errors(path):
+    errors = np.genfromtxt(str(path), delimiter=',')
+    epochs = np.arange(len(errors) - 1)
+    plt.plot(epochs, errors[1:, 0], "b-", label="Train")
+    plt.plot(epochs, errors[1:, 1], "r-", label="Test")
+    plt.ylabel("Error")
+    plt.xlabel("Epoch")
+    plt.legend(loc="best")
+    plt.savefig(path.stem + "_errors.png")
 
 
 if __name__ == "__main__":

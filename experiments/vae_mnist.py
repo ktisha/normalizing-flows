@@ -11,15 +11,13 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
 from lasagne.nonlinearities import identity, sigmoid, tanh
-from lasagne.updates import adam
+from lasagne.updates import adagrad
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, bernoulli_logpmf, \
     iter_minibatches, Stopwatch, Monitor
-
-np.random.seed(42)
 
 
 class Params(namedtuple("Params", [
@@ -119,7 +117,7 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params, learning_rate=1e-5)
+    updates = adagrad(-elbo_train, params)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 

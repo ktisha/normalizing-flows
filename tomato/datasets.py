@@ -32,7 +32,7 @@ def load_mnist_dataset(continuous=False):
         data = data.reshape(-1, 1, 28, 28)
         data = data / as_floatX(256)  # Convert to [0, 1].
         if not continuous:
-            data = np.where(data <= 0.5, 0, 1)
+            data = np.where(data <= 0.5, as_floatX(0), as_floatX(1))
         return data.reshape(-1, 28 * 28)
 
     def load_mnist_labels(path):

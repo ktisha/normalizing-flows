@@ -20,8 +20,6 @@ from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, bernoulli_logpmf, \
     iter_minibatches, Stopwatch, Monitor
 
-np.random.seed(42)
-
 
 class Params(namedtuple("Params", [
     "dataset", "batch_size", "num_epochs", "num_features",
@@ -50,14 +48,11 @@ def build_model(p):
 
     # q(z|x)
     net["enc_input"] = InputLayer((None, p.num_features))
-    net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
-                                    nonlinearity=leaky_rectify)
-    net["enc_hidden2"] = DenseLayer(net["enc_hidden1"],
-                                    num_units=p.num_hidden,
-                                    nonlinearity=leaky_rectify)
-    net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
+    net["enc_hidden"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
+                                   nonlinearity=leaky_rectify)
+    net["z_mu"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
                              nonlinearity=identity)
-    net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
+    net["z_log_covar"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
                                     nonlinearity=identity)
 
     net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
@@ -65,22 +60,20 @@ def build_model(p):
     net["z_k"], net["logdet"] = planar_flow(net["z"], p.num_flows)
 
     # q(x|z)
-    net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=p.num_hidden,
-                                    nonlinearity=leaky_rectify)
-    net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=p.num_hidden,
-                                    nonlinearity=leaky_rectify)
+    net["dec_hidden"] = DenseLayer(net["z_k"], num_units=p.num_hidden,
+                                   nonlinearity=leaky_rectify)
 
     if p.continuous:
-        net["x_mu"] = DenseLayer(net["dec_hidden2"],
+        net["x_mu"] = DenseLayer(net["dec_hidden"],
                                  num_units=p.num_features,
                                  nonlinearity=identity)
-        net["x_log_covar"] = DenseLayer(net["dec_hidden2"],
+        net["x_log_covar"] = DenseLayer(net["dec_hidden"],
                                         num_units=p.num_features,
                                         nonlinearity=identity)
         net["dec_output"] = concat([net["x_mu"], net["x_log_covar"]])
     else:
         net["x_mu"] = net["dec_output"] = DenseLayer(
-            net["dec_hidden2"], num_units=p.num_features,
+            net["dec_hidden"], num_units=p.num_features,
             nonlinearity=sigmoid)
     return net
 
