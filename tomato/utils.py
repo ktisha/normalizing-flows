@@ -1,4 +1,6 @@
+import copy
 import time
+from collections import deque
 
 import matplotlib
 matplotlib.use("Agg")
@@ -108,10 +110,11 @@ class Stopwatch:
 
 
 class Monitor:
-    def __init__(self, num_epochs, tolerance=25):
+    def __init__(self, num_epochs, tolerance=5):
         self.epoch = 0
         self.num_epochs = num_epochs
         self.tolerance = tolerance
+        self.snapshots = deque(maxlen=tolerance)
         self.train_errs = []
         self.val_errs = []
 
@@ -123,19 +126,25 @@ class Monitor:
             return True
 
         mean_val_err = np.mean(self.val_errs[-self.tolerance:])
-        good_to_go = (self.val_errs[-2] > self.val_errs[-1] or
-                      self.val_errs[-1] / mean_val_err < 1.5)
+        eps = 1 + np.sign(mean_val_err) * 0.05
+        good_to_go = self.val_errs[-1] < mean_val_err * eps
         if not good_to_go:
             print("Stopped early: {} > {}"
                   .format(self.val_errs[-1],  mean_val_err))
         return bool(good_to_go)
 
-    def report(self, sw, train_err, val_err):
+    @property
+    def best(self):
+        epoch = np.argmin(self.val_errs[-self.tolerance:])
+        return self.snapshots[epoch]
+
+    def report(self, snapshot, sw, train_err, val_err):
         print("Epoch {} of {} took {}"
               .format(self.epoch + 1, self.num_epochs, sw))
         print("  training loss:\t\t{:.6f}".format(train_err))
         print("  validation loss:\t\t{:.6f}".format(val_err))
         assert not np.isnan(train_err) and not np.isnan(val_err)
+        self.snapshots.append(copy.deepcopy(snapshot))
         self.train_errs.append(train_err)
         self.val_errs.append(val_err)
         self.epoch += 1

@@ -130,13 +130,15 @@ def fit_model(**kwargs):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
-        monitor.report(sw, train_err / train_batches, val_err / val_batches)
+        snapshot = get_all_param_values(net["dec_output"])
+        monitor.report(snapshot, sw, train_err / train_batches,
+                       val_err / val_batches)
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
     all_param_values = get_all_param_values(net["dec_output"])
     with path.with_suffix(".pickle").open("wb") as handle:
-        pickle.dump(all_param_values, handle)
+        pickle.dump(monitor.best, handle)
 
 
 def load_model(path):

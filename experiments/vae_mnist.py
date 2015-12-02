@@ -57,18 +57,16 @@ def build_model(p):
     net["dec_hidden"] = DenseLayer(net["z"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
 
+    net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
+                             nonlinearity=sigmoid)
     if p.continuous:
-        net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
-                                 nonlinearity=identity)
         net["x_log_covar"] = DenseLayer(net["dec_hidden"],
                                         num_units=p.num_features,
                                         nonlinearity=identity)
 
         net["dec_output"] = concat([net["x_mu"], net["x_log_covar"]])
     else:
-        net["dec_output"] = net["x_mu"] = DenseLayer(
-            net["dec_hidden"], num_units=p.num_features,
-            nonlinearity=sigmoid)
+        net["dec_output"] = net["x_mu"]
     return net
 
 
@@ -129,12 +127,14 @@ def fit_model(**kwargs):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
-        monitor.report(sw, train_err / train_batches, val_err / val_batches)
+        snapshot = get_all_param_values(net["dec_output"])
+        monitor.report(snapshot, sw, train_err / train_batches,
+                       val_err / val_batches)
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
     with path.with_suffix(".pickle").open("wb") as handle:
-        pickle.dump(get_all_param_values(net["dec_output"]), handle)
+        pickle.dump(monitor.best, handle)
 
 
 if __name__ == "__main__":
