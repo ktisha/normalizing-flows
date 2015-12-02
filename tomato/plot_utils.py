@@ -14,7 +14,8 @@ def plot_manifold(path, load_model, bounds=(-4, 4), num_steps=32):
     net = load_model(path)
     z_var = T.matrix()
     decoder = theano.function(
-        [z_var], get_output(net["x_mu"], {net["z"]: z_var}))
+        [z_var],
+        get_output(net["x_mu"], {net["z"]: z_var}, deterministic=True))
 
     Z01 = np.linspace(*bounds, num=num_steps)
     Zgrid = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
@@ -32,14 +33,16 @@ def plot_sample(path, load_model, load_params, num_samples):
     p = load_params(str(path))
     net = load_model(path)
     z_var = T.matrix()
-    z_mu = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var}))
+    z_mu = theano.function(
+        [z_var], get_output(net["x_mu"], {net["z"]: z_var}, deterministic=True))
 
     Z = as_floatX(np.random.normal(size=(num_samples, p.num_latent)))
 
     images = []
     if p.continuous:
         z_covar = theano.function(
-            [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var})))
+            [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var},
+                                      deterministic=True)))
         for z_i in Z:
             mu = z_mu(np.array([z_i]))
             covar = z_covar(np.array([z_i]))
