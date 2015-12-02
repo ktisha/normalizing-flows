@@ -1,7 +1,8 @@
+import time
+
 import numpy as np
 import theano.tensor as T
-
-import time
+from lasagne.utils import floatX as as_floatX
 
 from .plot_utils import plot_errors
 
@@ -13,17 +14,22 @@ def logaddexp(X, Y):
     return XY_max + T.log1p(T.exp(XY_min - XY_max))
 
 
+def logsumexp(X, axis=None):
+    X_max = T.max(X, axis=axis)
+    acc = T.log(T.sum(T.exp(X - X_max), axis=axis))
+    return X_max + T.log(T.exp(X - X_max).sum(axis=axis))
+
+
 def mvn_logpdf(X, mean, covar):
-    """Returns a theano expression representing the values of the log
-    probability density function of the multivariate normal with diagonal
-    covariance.
+    """Computes log-pdf of the multivariate normal with diagonal covariance.
 
     >>> import theano
     >>> import theano.tensor as T
     >>> X = T.matrix("X")
     >>> mean = T.vector("mean")
     >>> covar = T.vector("covar")
-    >>> f = theano.function([X, mean, covar], mvn_logpdf(X, mean, covar))
+    >>> f = theano.function([X, mean, covar], mvn_logpdf(X, mean, covar),
+    ...                     allow_input_downcast=True)
 
     >>> from scipy.stats import multivariate_normal
     >>> X = np.array([[-2, 0], [1, -4]])
@@ -45,6 +51,25 @@ def mvn_log_logpdf(X, mean, log_covar):
 
 def mvn_std_logpdf(X):
     return -.5 * (T.log(2 * np.pi) + T.square(X)).sum(axis=1)
+
+
+def bernoulli_logpmf(X, p):
+    """Computes log-pdf of the multivariate Bernoulli.
+
+    >>> import theano
+    >>> import theano.tensor as T
+    >>> X = T.matrix("X")
+    >>> p = T.vector("p")
+    >>> f = theano.function([X, p], bernoulli_logpmf(X, p),
+    ...                     allow_input_downcast=True)
+
+    >>> from scipy.stats import bernoulli
+    >>> X = np.array([[0, 1], [0, 1]])
+    >>> p = np.array([.25, .42])
+    >>> np.allclose(bernoulli.logpmf(X, p).sum(axis=1), f(X, p))
+    True
+    """
+    return -T.nnet.binary_crossentropy(p, X).sum(axis=1)
 
 
 def iter_minibatches(X, batch_size):
@@ -93,7 +118,6 @@ class Monitor:
         # If the loss is decreasing, just continue, otherwise stop if
         # it'd increased too much.
         mean_val_err = np.mean(self.val_errs[-self.tolerance:])
-        print(self.val_errs[-1], mean_val_err)
         return bool(self.val_errs[-2] >= self.val_errs[-1] or
                     self.val_errs[-1] / mean_val_err < 1.5)
 
@@ -112,3 +136,8 @@ class Monitor:
                    np.column_stack([self.train_errs, self.val_errs]),
                    delimiter=",")
         plot_errors(path)
+
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()

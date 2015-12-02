@@ -10,17 +10,15 @@ import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, \
     get_output, get_all_params, get_all_param_values, \
     set_all_param_values, concat, dropout
-from lasagne.nonlinearities import identity, rectify, sigmoid
-from lasagne.objectives import binary_crossentropy
+from lasagne.nonlinearities import identity, rectify, sigmoid, leaky_rectify
 from lasagne.updates import adam
-from lasagne.utils import floatX as as_floatX
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.layers import planar_flow
 from tomato.plot_utils import plot_manifold, plot_sample
-from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
-    Stopwatch, Monitor
+from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, bernoulli_logpmf, \
+    iter_minibatches, Stopwatch, Monitor
 
 np.random.seed(42)
 
@@ -53,10 +51,10 @@ def build_model(p):
     # q(z|x)
     net["enc_input"] = InputLayer((None, p.num_features))
     net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
-                                    nonlinearity=rectify)
-    net["enc_hidden2"] = DenseLayer(dropout(net["enc_hidden1"]),
+                                    nonlinearity=leaky_rectify)
+    net["enc_hidden2"] = DenseLayer(net["enc_hidden1"],
                                     num_units=p.num_hidden,
-                                    nonlinearity=rectify)
+                                    nonlinearity=leaky_rectify)
     net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
                              nonlinearity=identity)
     net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
@@ -68,13 +66,13 @@ def build_model(p):
 
     # q(x|z)
     net["dec_hidden1"] = DenseLayer(net["z_k"], num_units=p.num_hidden,
-                                    nonlinearity=rectify)
-    net["dec_hidden2"] = DenseLayer(dropout(net["dec_hidden1"]),
-                                    num_units=p.num_hidden,
-                                    nonlinearity=rectify)
+                                    nonlinearity=leaky_rectify)
+    net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=p.num_hidden,
+                                    nonlinearity=leaky_rectify)
 
     if p.continuous:
-        net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=p.num_features,
+        net["x_mu"] = DenseLayer(net["dec_hidden2"],
+                                 num_units=p.num_features,
                                  nonlinearity=identity)
         net["x_log_covar"] = DenseLayer(net["dec_hidden2"],
                                         num_units=p.num_features,
@@ -99,7 +97,7 @@ def elbo(X_var, net, p, **kwargs):
         x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)
         logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
     else:
-        logpxz = -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
+        logpxz = bernoulli_logpmf(X_var, x_mu_var)
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return T.mean(logpxz + mvn_std_logpdf(z_k_var)
@@ -120,7 +118,7 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params, learning_rate=1e-4)
+    updates = adam(-elbo_train, params, learning_rate=1e-3)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 
@@ -143,8 +141,7 @@ def fit_model(**kwargs):
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
-    all_param_values = get_all_param_values(
-        concat([net["x_mu"], net["x_log_covar"]]))
+    all_param_values = get_all_param_values(net["dec_output"])
     with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(all_param_values, handle)
 
@@ -153,8 +150,7 @@ def load_model(path):
     print("Building model and compiling functions...")
     net = build_model(Params.from_path(str(path)))
     with path.open("rb") as handle:
-        set_all_param_values(concat([net["x_mu"], net["x_log_covar"]]),
-                             pickle.load(handle))
+        set_all_param_values(net["dec_output"], pickle.load(handle))
     return net
 
 

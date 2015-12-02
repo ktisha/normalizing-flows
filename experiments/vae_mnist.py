@@ -10,15 +10,14 @@ import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
-from lasagne.objectives import binary_crossentropy
 from lasagne.nonlinearities import identity, sigmoid, tanh
 from lasagne.updates import adam
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample
-from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, iter_minibatches, \
-    Stopwatch, Monitor
+from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, bernoulli_logpmf, \
+    iter_minibatches, Stopwatch, Monitor
 
 np.random.seed(42)
 
@@ -71,7 +70,7 @@ def build_model(p):
         net["dec_output"] = concat([net["x_mu"], net["x_log_covar"]])
     else:
         net["dec_output"] = net["x_mu"] = DenseLayer(
-            net["dec_hidden2"], num_units=p.num_features,
+            net["dec_hidden"], num_units=p.num_features,
             nonlinearity=sigmoid)
     return net
 
@@ -86,7 +85,7 @@ def elbo(X_var, net, p, **kwargs):
         x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)
         logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
     else:
-        logpxz = -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
+        logpxz = bernoulli_logpmf(X_var, x_mu_var)
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return T.mean(
