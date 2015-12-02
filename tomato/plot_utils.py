@@ -14,12 +14,11 @@ def plot_manifold(path, load_model, num_steps=32):
         [z_var],
         get_output(net["x_mu"], {net["z"]: z_var}, deterministic=True))
 
-    eps = 1e-4
     images = []
-    for i, j in np.ndindex(num_steps, num_steps):
-        z_ij = stats.norm.ppf([[max(eps, i) / num_steps,
-                                max(eps, j) / num_steps]])
-        images.append(decoder(as_floatX(z_ij)).reshape(28, -1))
+    for i, j in np.ndindex(num_steps - 1, num_steps - 1):
+        z_ij = as_floatX([[stats.norm.ppf((i + 1) / num_steps),
+                           stats.norm.ppf((j + 1) / num_steps)]])
+        images.append(decoder(z_ij).reshape(28, -1))
 
     _plot_grid(
         path.with_name("{}_manifold_{}.png".format(path.stem, num_steps)),

@@ -11,7 +11,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
 from lasagne.nonlinearities import identity, sigmoid, tanh
-from lasagne.updates import adagrad
+from lasagne.updates import adam
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
@@ -117,7 +117,7 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adagrad(-elbo_train, params)
+    updates = adam(-elbo_train, params)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 
