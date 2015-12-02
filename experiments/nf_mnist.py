@@ -87,7 +87,7 @@ def build_model(p):
     return net
 
 
-def elbo(X_var, beta_var, net, p, **kwargs):
+def elbo(X_var, net, p, **kwargs):
     x_mu_var = get_output(net["x_mu"], X_var, **kwargs)
     z_0_var = get_output(net["z"], X_var, **kwargs)
     z_k_var = get_output(net["z_k"], X_var, **kwargs)
@@ -102,10 +102,9 @@ def elbo(X_var, beta_var, net, p, **kwargs):
         logpxz = -binary_crossentropy(x_mu_var, X_var).sum(axis=1)
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
-    return T.mean(
-        beta_var * (logpxz + mvn_std_logpdf(z_k_var))
-        - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var) - logdet_sum_var)
-    )
+    return T.mean(logpxz + mvn_std_logpdf(z_k_var)
+                  - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var)
+                     - logdet_sum_var))
 
 
 def fit_model(**kwargs):
@@ -115,18 +114,15 @@ def fit_model(**kwargs):
 
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
-    beta_var = T.scalar("beta_t")  # Inverse temperature.
     net = build_model(p)
 
-    elbo_train = elbo(X_var, beta_var, net, p, deterministic=False)
-    elbo_val = elbo(X_var, beta_var, net, p, deterministic=True)
+    elbo_train = elbo(X_var, net, p, deterministic=False)
+    elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
     updates = adam(-elbo_train, params, learning_rate=1e-4)
-    train_nelbo = theano.function([X_var, beta_var], -elbo_train,
-                                  updates=updates)
-    val_nelbo = theano.function([X_var], -elbo_val,
-                                givens={beta_var: as_floatX(1)})
+    train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
+    val_nelbo = theano.function([X_var], -elbo_val)
 
     print("Starting training...")
     monitor = Monitor(p.num_epochs)
@@ -135,10 +131,8 @@ def fit_model(**kwargs):
         with sw:
             train_err, train_batches = 0, 0
             # Causes ELBO to go to infinity. Should investigate further.
-            # beta = min(1, 0.01 + float(monitor.epoch) / p.num_epochs)
-            beta = 1
             for Xb in iter_minibatches(X_train, p.batch_size):
-                train_err += train_nelbo(Xb, beta)
+                train_err += train_nelbo(Xb)
                 train_batches += 1
 
             val_err, val_batches = 0, 0
