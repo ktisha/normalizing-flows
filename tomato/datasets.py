@@ -24,13 +24,13 @@ def load_mnist_dataset(continuous):
             download(path)
 
         with gzip.open(str(path)) as handle:
-            X = (np.frombuffer(handle.read(), np.uint8, offset=16)
+            data = (np.frombuffer(handle.read(), np.uint8, offset=16)
                  .reshape(-1, 28 * 28))
 
         if continuous:
             return data / as_floatX(256)  # Convert to [0, 1).
         else:
-            return np.where(X <= 127, as_floatX(0), as_floatX(1))
+            return np.where(data <= 127, as_floatX(0), as_floatX(1))
 
     def load_mnist_labels(path):
         if not path.exists():
