@@ -11,7 +11,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
 from lasagne.objectives import binary_crossentropy
-from lasagne.nonlinearities import rectify, identity, sigmoid, tanh
+from lasagne.nonlinearities import identity, sigmoid, tanh
 from lasagne.updates import adam
 
 from tomato.datasets import load_dataset
@@ -48,27 +48,23 @@ def build_model(p):
     net = {}
     # q(z|x)
     net["enc_input"] = InputLayer((p.batch_size, p.num_features))
-    net["enc_hidden1"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
-                                    nonlinearity=rectify)
-    net["enc_hidden2"] = DenseLayer(net["enc_hidden1"], num_units=p.num_hidden,
-                                    nonlinearity=rectify)
-    net["z_mu"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
+    net["enc_hidden"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
+                                   nonlinearity=tanh)
+    net["z_mu"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
                              nonlinearity=identity)
-    net["z_log_covar"] = DenseLayer(net["enc_hidden2"], num_units=p.num_latent,
+    net["z_log_covar"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
                                     nonlinearity=identity)
 
     net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
 
     # q(x|z)
-    net["dec_hidden1"] = DenseLayer(net["z"], num_units=p.num_hidden,
-                                    nonlinearity=rectify)
-    net["dec_hidden2"] = DenseLayer(net["dec_hidden1"], num_units=p.num_hidden,
-                                    nonlinearity=rectify)
+    net["dec_hidden"] = DenseLayer(net["z"], num_units=p.num_hidden,
+                                   nonlinearity=tanh)
 
     if p.continuous:
-        net["x_mu"] = DenseLayer(net["dec_hidden2"], num_units=p.num_features,
+        net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
                                  nonlinearity=identity)
-        net["x_log_covar"] = DenseLayer(net["dec_hidden2"],
+        net["x_log_covar"] = DenseLayer(net["dec_hidden"],
                                         num_units=p.num_features,
                                         nonlinearity=identity)
 
