@@ -268,8 +268,8 @@
   \begin{center}
     \begin{minipage}[t]{.3\linewidth}
       \begin{tikzpicture}[baseline=1em]
-        \node[latent]            (z) {$\mathbf{z}$};
-        \node[obs, below=of z]   (x) {$\mathbf{x}$};
+        \node[latent]            (z) {$z$};
+        \node[obs, below=of z]   (x) {$x$};
         \node[const, right=of z] (t) {$\theta$};
         \node[const, left=of z]  (p) {$\phi$};
         \node[const, left=of x, xshift=2em]   (lfantom) {};
@@ -286,16 +286,16 @@
     \begin{minipage}[t]{.55\linewidth}
       \begin{align*}
         p(z|\theta) &= \mathcal{N}(z|0, \mathbf{I}) \\
-        p(x|z, \theta) &= \mathcal{N}(x| \mu(z), \sigma(z)^2 \mathbf{I}) \\
-        q(z|x, \phi) &= \mathcal{N}(z| M(x), S(x)^2 \mathbf{I}) \\
+        p(x|z, \theta) &= \mathcal{N}(x| \mu(z), \sigma^2(z) \mathbf{I}) \\
+        q(z|x, \phi) &= \mathcal{N}(z| M(x), S^2(x) \mathbf{I}) \\
       \end{align*}
     \end{minipage}
   \end{center}
 
   \begin{itemize}
-  \item The parameters $\mu(z)$ and $\sigma(z)^2$ are computed by a neural net,
+  \item The parameters $\mu(z)$ and $\sigma^2(z)$ are computed by a neural net,
     which assigns each value of $z$ a \hl{distribution} over $x$.
-  \item The parameters $M(x)$ and $S(x)^2$ are computed by a \hl{different}
+  \item The parameters $M(x)$ and $S^2(x)$ are computed by a \hl{different}
     neural net, mapping $x$ to a distribution over $z$.
   \end{itemize}
 \end{frame}
@@ -304,10 +304,10 @@
 \begin{frame}{VAE illustrated}
   \centering
   \begin{tikzpicture}
-    \node[obs]                 (x1) {$\mathbf{x}$};
-    \node[latent, below=of x1] (z) {$\mathbf{z}$};
+    \node[obs]                 (x1) {$x$};
+    \node[latent, below=of x1] (z) {$z$};
     \node[latent, left=of z]   (e) {$\epsilon$};
-    \node[obs, below=of z]     (x2) {$\mathbf{x}$};
+    \node[obs, below=of z]     (x2) {$x$};
 
     \node[below=of e, yshift=2em, align=center] {injected\\noise};
     \path (z) edge [->] node [midway, right, xshift=2em]
@@ -426,11 +426,11 @@
 \begin{frame}{VAE and normalizing flows}
   \centering
   \begin{tikzpicture}
-    \node[obs]                 (x1) {$\mathbf{x}$};
-    \node[latent, below=of x1] (zK) {$\mathbf{z_K}$};
-    \node[latent, below=of zK] (z0) {$\mathbf{z_0}$};
+    \node[obs]                 (x1) {$x$};
+    \node[latent, below=of x1] (zK) {$z_K$};
+    \node[latent, below=of zK] (z0) {$z_0$};
     \node[latent, left=of z0]  (e) {$\epsilon$};
-    \node[obs, below=of z0]    (x2) {$\mathbf{x}$};
+    \node[obs, below=of z0]    (x2) {$x$};
 
     \node[below=of e, yshift=2em, align=center] {injected\\noise};
     \path (zK) edge [->] node [midway, right, xshift=2em]
