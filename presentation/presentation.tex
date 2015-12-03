@@ -336,13 +336,14 @@
 
 
 \begin{frame}[fragile]{Normalizing flows}
-  $q(z|x)$ is different from  $p(z|x)$
-  idea: $f(z)$ to get $\tilde{z}$.
+  We want to specify a complicated joint distribution over z.\\
+  ~\\
+  \textcolor{darkred}{Idea:} $f$ --- invertible parametric function\\
+  Introduce new $\tilde{z} = f(z)$
 
-  $f$ --- invertible parametric function
 \end{frame}
 
-% 17
+
 \begin{frame}[fragile]{Normalizing flows}
   Transformation of random variables: $\tilde{z} = f(z)$, $f^{-1}(\tilde{z}) = z$\\
   $$
@@ -350,7 +351,7 @@
   = q(f^{-1}(\tilde{z})) \left\vert \det \frac{\partial f^{-1}(\tilde{z})}{\partial \tilde{z}} \right\vert
   = q(z) \left\vert \det \frac{\partial f(z)}{\partial z} \right\vert^{-1}
   $$ \\
-  Chaining together a sequence: $z_K = f_K \circ f_{K−1} \circ \cdots \circ f_2 \circ f_1(z_0)$\\
+  Chaining together a sequence: $z_K = f_K ( f_{K−1} ( \cdots f_2 ( f_1(z_0)))$\\
   $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert $$
 
   Law of the unconscious statistician:\\
@@ -361,7 +362,7 @@
 
 % 18
 \begin{frame}[fragile]{Planar flow}
-  \textcolor{darkred}{Family of transformations}: $f(z) = z + uh\left( w^T z + b \right)$\\
+  \textcolor{darkred}{Family of transformations:} $f(z) = z + uh\left( w^T z + b \right)$\\
   ~\\
   $$\left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z)
   \right\vert ~~~\text{where}~~~ \psi(z) = h'(w^Tz + b)w$$ \\
@@ -374,7 +375,7 @@
 
 % 19
 \begin{frame}[fragile]{Radial flow}
-  \textcolor{darkred}{Family of transformations}: \\
+  \textcolor{darkred}{Family of transformations:} \\
   $f(z) = z + \beta h(\alpha, r)(z-z_0) ~~~\text{where}~~~ r = \vert z-z_0 \vert$,
   $h(\alpha, r) = \frac{1}{\alpha + r}$\\
   ~\\
