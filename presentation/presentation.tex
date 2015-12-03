@@ -7,10 +7,12 @@
 \usetikzlibrary{bayesnet}
 \usetikzlibrary{arrows}
 
+\usepackage{mathtools}  %% for \underbrace
+
 \input{presentation-base}
 
 \title{Variational Auto-Encoder \\
-  and \\
+  \& \\
   Normalizing Flows}
 \author{S. Lebedev, E. Tuzova}
 \institute{JetBrains}
@@ -33,8 +35,8 @@
   \end{center}
 
   \begin{itemize}
-  \item What are the underlying latent dimensions in these two datasets?
-  \item How do we find these from the data?
+  \item What are the underlying \hl{hidden} factors in these two datasets?
+  \item How do we find them from the data?
   \end{itemize}
 \end{frame}
 
@@ -62,7 +64,7 @@
       $z$ --- \hl{continuous} latent variables\\
       $\theta$ --- model parameters\\
       % $\phi~-$ variational parameters\\
-      $p_{\theta}(x, z) = p_{\theta}(x|z) p_{\theta}(z)$ --- joint p.d.f.\\
+      $p(x, z|\theta) = p(x|z, \theta) p(z|\theta)$ %--- joint p.d.f.\\
     \end{minipage}
   \end{center}
 
@@ -71,8 +73,9 @@
     in the ``real-world'' scenario.
   \item Specifically when
     \begin{itemize}
-    \item evidence is \hl{intractable},
-    \item so is the posterior for latent variables.
+    \item non-conjugate distributions are involved,
+    \item so the evidence and posterior for latent variables are both
+      \hl{intractable}.
     \item Mean-field VB is \hl{not applicable} because the integrals
       required are intractable as well.
     \end{itemize}
@@ -105,10 +108,12 @@
 
 
 \begin{frame}{The plan}
+  \hl{tl;dr} reduce the problem to stochastic optimization.
+
   \begin{enumerate}
   \item Approximate the posterior with a neural net
-    $q_{\phi}(z|x)$, where $\phi$ --- variational parameters.
-  \item Lower bound the evidence using $q_{\phi}(z|x)$.
+    $q(z|x, \phi)$, where $\phi$ --- variational parameters.
+  \item Lower bound the evidence using $q(z|x, \phi)$.
   \item Construct an estimator of the ELBO which can be
     optimized jointly w.r.t. $\phi$ and $\theta$.
   \item Use stochastic gradient ascent.
@@ -118,15 +123,20 @@
 
 
 \begin{frame}{ELBO}
-  Having $q_\phi(z|x)$ we can deconstruct the evidence into
-  $$
-  \log p_\theta(x) = \KL{q_\phi(z|x)}{p_\theta(z|x)} + \mathcal{L}(\theta, \phi; x)
-  $$
+  Having $q(z|x, \phi)$ we can deconstruct the evidence into
+  \begin{align*}
+    \log p(x|\theta)
+    &= \log \int p(x, z|\theta) dz
+     = \log \int q(z|x, \phi) \frac{p(x, z|\theta)}{q(z|x, \phi)} dz \\
+    &= \KL{q(z|x, \phi)}{p(z|x, \theta)} + \mathcal{L}(\theta, \phi; x) \\
+    &\ge \mathcal{L}(\theta, \phi; x)
+  \end{align*}
   where the lower bound is given by
   \begin{align*}
     \mathcal{L}(\theta, \phi; x)
-    &= \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
-    &= -\KL{q_\phi (z|x)}{p_\theta(z)} + \E{q_\phi(z|x)}{\log p_\theta (x|z)}
+    &= \E{q(z|x, \phi)}{\log p(x, z|\theta) - \log q(z|x, \phi)} \\
+    &= \E{q(z|x, \phi)}{\log p(x|z, \theta)}
+     - \KL{q(z|x, \phi)}{p(z|\theta)}
   \end{align*}
 
   % \begin{itemize}
@@ -138,41 +148,40 @@
 
 \begin{frame}{Optimizing the ELBO}
   \begin{itemize}
-  \item Want to optimize the lower bound w.r.t both $\theta$ and $\phi$.
+  \item Want to optimize the lower bound w.r.t \hl{both} $\theta$ and $\phi$.
   \item Just-do-it approach:
     \begin{align*}
       \grad_\theta \mathcal{L}(\theta, \phi; x)
-      &= \grad_\theta \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
-      &= \E{q_\phi(z|x)}{\grad_\theta \log p_\theta(x, z)} \\
-      &\approx \frac{1}{S} \sum\limits_{s = 1}^S \grad_\theta \log p_\theta(x, z^{(s)}) \\
+      &= \grad_\theta \E{q(z|x, \phi)}{\log p(x, z|\theta) - \log q(z|x, \phi)} \\
+      &= \E{q(z|x, \phi)}{\grad_\theta \log p(x, z|\theta)} \\
+      &\approx \frac{1}{S} \sum\limits_{s = 1}^S
+           \grad_\theta \log p(x, z^{(s)}|\theta) \\
       \grad_\phi \mathcal{L}(\theta, \phi; x)
-      &= \grad_\phi \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
-      &= -\grad_\phi \E{q_\phi(z|x)}{\log q_\phi(z|x)}
-       = \op{:(}
+      &= \grad_\phi \E{q(z|x, \phi)}{\log p(x, z|\theta) - \log q(z|x, \phi)}
     \end{align*}
-  \item How to deal with the gradients of the form $\grad_\phi \E{q_\phi(z)}{f(z)}$?
+  \item How to deal with gradients of the form $\grad_\phi \E{q(z|\phi)}{f(z)}$?
   \end{itemize}
 \end{frame}
 
 
-\begin{frame}{Na\"ive MCMC estimator of $\grad_\phi \E{q_\phi(z)}{f(z)}$}
+\begin{frame}{Na\"ive MCMC estimator of $\grad_\phi \E{q(z|\phi)}{f(z)}$}
   \begin{align*}
-    \grad_\phi \E{q_\phi(z)}{f(z)}
-    &= \grad_\phi \int q_\phi(z) f(z) dz
-     = \int f(z) \grad_\phi q_\phi(z) dz \\
-    &= \int f(z) q_\phi(z) \grad_\phi \log q_\phi(z) dz
+    \grad_\phi \E{q(z|\phi)}{f(z)}
+    &= \grad_\phi \int q(z|\phi) f(z) dz
+     = \int f(z) \grad_\phi q(z|\phi) dz \\
+    &= \int f(z) q(z|\phi) \grad_\phi \log q(z|\phi) dz
   \end{align*}
-  where the last line is due to the log derivative
+  where the last line is due to the \hl{log derivative}
   trick\footnote{%
     \url{http://blog.shakirm.com/2015/11/machine-learning-trick-of-the-day-5-log-derivative-trick}}
   $$
-  \grad_\phi \log q(z|x) = \frac{\grad_\phi q(z|x)}{q(z|x)}
+  \grad_\phi \log q(z|x, \phi) = \frac{\grad_\phi q(z|x, \phi)}{q(z|x, \phi)}
   $$
   Proceeding further we obtain
   \begin{align*}
-    \grad_\phi \E{q_\phi(z)}{f(z)}
-    &= \E{q_\phi(z|x)}{f(z) \grad_\phi \log q_\phi(z)} \\
-    &\approx \frac{1}{S} \sum\limits_{s = 1}^S f(z^{(s)}) \grad_\phi \log q_\phi(z^{(s)})
+    \grad_\phi \E{q(z|\phi)}{f(z)}
+    &= \E{q(z|x, \phi)}{f(z) \grad_\phi \log q(z|\phi)} \\
+    &\approx \frac{1}{S} \sum\limits_{s = 1}^S f(z^{(s)}) \grad_\phi \log q(z^{(s)}|\phi)
     \to \op{:(}
   \end{align*}
 
@@ -185,65 +194,67 @@
 \begin{frame}{Reparametrization trick%
   \footnote{\url{http://blog.shakirm.com/2015/10/machine-learning-trick-of-the-day-4-reparameterisation-tricks}}}
   \begin{itemize}
-  \item Introduce an auxilary noise variable $\epsilon$ independent of $\phi$.
-  \item Express $z$ as a determinisitic transformation of $\epsilon$
-    differentiable w.r.t. $\phi$
+  \item Introduce an auxilary noise variable $\epsilon$ \hl{independent} of
+    $\phi$.
+  \item Express $z$ as a \hl{determinisitic} transformation of $\epsilon$
+    \hl{differentiable} w.r.t. $\phi$
     $$
-    z = g_\phi(\epsilon, x)
+    z = g(\epsilon, x; \phi)
     \qquad
     \epsilon \sim p(\epsilon)
     $$
   \item Plug the transformed variable into the expectation
+    $$
+    \E{q(z|x, \phi)}{f(z)}
+    = \E{p(\epsilon)}{f(g(\epsilon, x; \phi)}
+    \approx \frac{1}{S} \sum\limits_{s = 1}^S f(g(\epsilon^{(l)}, x; \phi))
+    $$
+  \item For example $q(z|\phi) = \mathcal{N}(z|\mu, \sigma^2)$ and
+    $\phi = (\mu, \sigma^2)$ then
     \begin{align*}
-      \E{q_\phi(z|x)}{f(z)}
-      = \E{p(\epsilon)}{f(g_\phi(\epsilon, x)}
-      = \frac{1}{S} \sum\limits_{s = 1}^S f(g_\phi(\epsilon^{(l)}, x))
+      \grad_\phi \E{q(z|\phi)}{f(z)}
+      = \E{\mathcal{N}(\epsilon|0, 1)}{\grad_\phi f(\mu + \sigma \epsilon)}
     \end{align*}
-  \item A trivial but useful example:
+    where $z = \mu + \sigma\epsilon$ and $\epsilon \sim \mathcal{N}(0, 1)$.
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}{SGVB estimator}
+  \begin{itemize}
+  \item In general
     \begin{align*}
-      q_\phi(z|x) = \mathcal{N}(z; \mu, \sigma^2)
-      \qquad
-      z = \mu + \sigma\epsilon
-      \qquad
-      \epsilon \sim \mathcal{N}(0, 1)
+      \mathcal{L}(\theta, \phi; x)
+      &= \E{q(z|x, \phi)}{\log p(x, z|\theta) - \log q(z|x, \phi)} \\
+      &\approx \frac{1}{S} \sum\limits_{s = 1}^S
+            \log p(x, z^{(s)}|\theta) - \log q(z^{(s)}|x, \phi) \\
+      &\triangleq \widetilde{\mathcal{L}}(\theta, \phi; x)
     \end{align*}
+    where $z^{(s)} = g(\epsilon^{(s)}, x; \phi)$ and $\epsilon^{(s)} \sim p(\epsilon)$.
+  \item If $\KL{q(z|x, \phi)}{p(z|\theta)}$ is tractable
     \begin{align*}
-      \grad_\phi \E{q_\phi(z)}{f_\theta(z)}
-      = \E{\mathcal{N}(\epsilon; 0, 1)}{\grad_\phi f_\theta(\mu + \sigma \varepsilon)}
+      \mathcal{L}(\theta, \phi; x)
+      &= \E{q(z|x, \phi)}{\log p(x|z, \theta)} - \KL{q(z|x, \phi)}{p(z|\theta)} \\
+      &\approx \frac{1}{S} \sum\limits_{s = 1}^S \log p(x|z, \theta)
+       - \KL{q(z|x, \phi)}{p(z|\theta)}
     \end{align*}
   \end{itemize}
 \end{frame}
 
 
-\begin{frame}[fragile]{SGVB estimator}
-  \begin{align*}
-    \mathcal{L}(\theta, \phi; x)
-    &= \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
-    &\approx \frac{1}{S} \sum\limits_{s = 1}^S
-          \log p_\theta(x, z^{(s)}) - \log q_\phi(z^{(s)}|x) \\
-    &\doteq \tilde{\mathcal{L}}(\theta, \phi; x)
-  \end{align*}
-  where
-  \begin{align*}
-    z^{(s)} = g_\phi(\epsilon^{(s)}, x)
-    \qquad
-    \epsilon^{(s)} \sim p(\epsilon)
-  \end{align*}
-\end{frame}
-
-%% TODO: the case of tractable KL? since we use it in experiments.
-
 \begin{frame}{AEVB algorithm}
   \centering
   \begin{algorithmic}
+    \State $\alpha \gets$ set learning rate
     \State $\theta, \phi \gets$ initialize parameters
     \Repeat
-       \State $X^M \gets$ random minibatch of $M$ datapoints
+       \State $x \gets$ random datapoint or minibatch
        \State $\epsilon \gets$ random samples from $p(\epsilon)$
-       \State $g_\theta, g_\phi \gets \grad_{\phi, \theta} \mathcal{\tilde{L}}(\theta, \phi; X^M, \epsilon)$
+       \State $g_\theta, g_\phi \gets \grad_{\phi, \theta} %
+           \mathcal{\widetilde{L}}(\theta, \phi; x, \epsilon)$
        \State $\theta \gets \theta + \alpha g_\theta$
        \State $\phi \gets \phi + \alpha g_\phi$
-    \Until convergence of parameters $\theta$, $\phi$ \\
+    \Until convergence \\
     \Return $\theta$, $\phi$
   \end{algorithmic}
 \end{frame}
@@ -252,7 +263,7 @@
 \begin{frame}{Variational auto-encoder}
   \begin{center}
     \begin{minipage}[t]{.3\linewidth}
-      \begin{tikzpicture}[baseline=0]
+      \begin{tikzpicture}[baseline=1em]
         \node[latent]            (z) {$\mathbf{z}$};
         \node[obs, below=of z]   (x) {$\mathbf{x}$};
         \node[const, right=of z] (t) {$\theta$};
@@ -270,33 +281,43 @@
     \end{minipage}
     \begin{minipage}[t]{.55\linewidth}
       \begin{align*}
-        p_\theta(z) &= \mathcal{N}(z; 0, \mathbf{I}) \\
-        p_\theta(x|z) &= \mathcal{N}(x; \mu(z), \sigma(z) \mathbf{I}) \\
-        q_\phi(z|x) &= \mathcal{N}(z; \mu(x), \sigma(x) \mathbf{I}) \\
+        p(z|\theta) &= \mathcal{N}(z|0, \mathbf{I}) \\
+        p(x|z, \theta) &= \mathcal{N}(x| \mu(z), \sigma(z)^2 \mathbf{I}) \\
+        q(z|x, \phi) &= \mathcal{N}(z| M(x), S(x)^2 \mathbf{I}) \\
       \end{align*}
     \end{minipage}
   \end{center}
 
   \begin{itemize}
-  \item $\mu(z)$ and $\sigma(z)$ are neural nets
+  \item The parameters $\mu(z)$ and $\sigma(z)^2$ are computed by a neural net,
+    which assigns each value of $z$ a \hl{distribution} over $x$.
+  \item The parameters $M(x)$ and $S(x)^2$ are computed by a \hl{different}
+    neural net, mapping $x$ to a distribution over $z$.
   \end{itemize}
-
-  $L(\theta, \phi; x^{(i)}) \simeq \frac{1}{2} \sum\limits_{j=1}^J (1 + \log ((\sigma_j^{(i)})^2) -
-  (\mu_j^{(i)})^2 - (\sigma_j^{(i)})^2) + \frac{1}{L} \sum\limits_{l=1}^L \log p_{\theta} (x^{(i)}|z^{(i,l)})$\\
-  where $z^{(i,l)} = \mu^{(i)} + \sigma^{(i)} \odot \varepsilon^{(l)}$ and $\varepsilon^{(l)} \sim \mathcal{N}(0,I)$
 \end{frame}
 
 
 \begin{frame}{VAE illustrated}
-  The unobserved variables $z$ have an interpretation as a latent representation or code.
+  \centering
+  \begin{tikzpicture}
+    \node[obs]                 (x1) {$\mathbf{x}$};
+    \node[latent, below=of x1] (z) {$\mathbf{z}$};
+    \node[latent, left=of z]   (e) {$\epsilon$};
+    \node[obs, below=of z]     (x2) {$\mathbf{x}$};
 
-  \begin{itemize}
-    \item Represent recognition model $q_{\phi}(z|x)$ as a probabilistic encoder.\\
-        Given a datapoint $x$ it produces a distribution over the possible values of the code $z$
-        from which the datapoint $x$ could have been generated
-    \item Represent $p_{\theta}(x|z)$ as a probabilistic decoder.\\
-        Given a code $z$ it produces a distribution over the possible corresponding values of $x$
-  \end{itemize}
+    \node[below=of e, yshift=2em, align=center] {injected\\noise};
+    \path (z) edge [->] node [midway, right, xshift=2em]
+        {$p(x|z, \theta)$ \hl{aka} decoder} (x1);
+    \path (x2) edge [->, dashed] node [midway, right, xshift=2em]
+        {$q(z|x, \phi)$ \hl{aka} encoder} (z);
+    \edge {e} {z};
+  \end{tikzpicture}
+
+  $$
+  \mathcal{L}(\theta, \phi; x)
+  = \underbrace{\E{q(z|x, \phi)}{\log p(x|z, \theta)}}_{\text{negative reconstruction error}}
+  - \underbrace{\KL{q(z|x, \phi)}{p(z|\theta)}}_{\text{regularizer}}
+  $$
 \end{frame}
 
 
@@ -310,19 +331,15 @@
 
 \begin{frame}[c,noframenumbering,plain]
   \centering\fontsize{24pt}{1em}\color{darkred}{\selectfont{What is wrong with VAE?}}
+  %% Answer: q(z|x) is diag. gaussian.
 \end{frame}
 
 
-%% TODO: what is wrong with VAE? Answer: q(z|x) is diag. gaussian.
 \begin{frame}[fragile]{Normalizing flows}
-  \textcolor{darkred}{Normalizing flows}: the transformation of a probability density through
-  a sequence of invertible mappings.
-  \begin{itemize}
-    \item By repeated application of the rule for random variable transformations, the initial
-    density flows through the sequence of invertible mappings.
-    \item At the end of the sequence, we have a valid probability distribution.
-  \end{itemize}
+  $q(z|x)$ is different from  $p(z|x)$
+  idea: $f(z)$ to get $\tilde{z}$.
 
+  $f$ --- invertible parametric function
 \end{frame}
 
 % 17
