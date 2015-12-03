@@ -10,6 +10,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
 from lasagne.nonlinearities import identity, sigmoid, tanh
+from lasagne.objectives import squared_error
 from lasagne.updates import adam
 
 from tomato.datasets import load_dataset
@@ -108,7 +109,7 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params, learning_rate=1e-4)
+    updates = adam(-elbo_train, params, learning_rate=2e-3)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 
@@ -135,6 +136,13 @@ def fit_model(**kwargs):
     monitor.save(path.with_suffix(".csv"))
     with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(monitor.best, handle)
+
+    # Calculate MSE as with plain AE.
+    X_output_var = get_output(net["x_mu"], determinisitic=True)
+    mse = theano.function(
+        [X_var], squared_error(X_var, X_output_var).mean())
+
+    print("MSE for the best performing model: {:.6f}".format(mse(X_val)))
 
 
 if __name__ == "__main__":
