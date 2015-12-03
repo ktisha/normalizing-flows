@@ -48,3 +48,6 @@ tomato/data
 *.toc
 *.vrb
 .png
+auto/
+*.bbl
+*.blg
