@@ -115,11 +115,6 @@
 \end{frame}
 
 
-\begin{frame}{Encoder-decoder perspective}
-  %% TODO
-\end{frame}
-
-
 \begin{frame}{ELBO}
   Having $q_\phi(z|x)$ we can deconstruct the evidence into
   $$
@@ -249,6 +244,41 @@
     \Until convergence of parameters $\theta$, $\phi$ \\
     \Return $\theta$, $\phi$
   \end{algorithmic}
+\end{frame}
+
+
+\begin{frame}{Variational auto-encoder}
+  \begin{center}
+    \begin{minipage}[t]{.3\linewidth}
+      \begin{tikzpicture}[baseline=0]
+        \node[latent]            (z) {$\mathbf{z}$};
+        \node[obs, below=of z]   (x) {$\mathbf{x}$};
+        \node[const, right=of z] (t) {$\theta$};
+        \node[const, left=of z]  (p) {$\phi$};
+        \node[const, left=of x, xshift=2em]   (lfantom) {};
+        \node[const, right=of x, xshift=-2em] (rfantom) {};
+
+        \edge {z} {x};
+        \draw (x) edge [->,dashed,bend left=45] (z);
+        \draw (p) edge [->,dashed] (z);
+        \edge {t} {x,z};
+
+        \plate {xz} {(x)(z)(lfantom)(rfantom)} {$~N$};
+      \end{tikzpicture}
+    \end{minipage}
+    \begin{minipage}[t]{.55\linewidth}
+      \begin{align*}
+        p_\theta(z) &= \mathcal{N}(z; 0, \mathbf{I}) \\
+        p_\theta(x|z) &= \mathcal{N}(x; \mu(z), \sigma(z) \mathbf{I}) \\
+        q_\phi(z|x) &= \mathcal{N}(z; \mu(x), \sigma(x) \mathbf{I}) \\
+      \end{align*}
+    \end{minipage}
+  \end{center}
+
+  \begin{itemize}
+  \item $\mu(z)$ and $\sigma(z)$ are neural nets
+  \end{itemize}
+  %% TODO: move the dec/enc view here?
 \end{frame}
 
 
