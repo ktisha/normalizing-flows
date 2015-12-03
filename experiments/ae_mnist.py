@@ -67,9 +67,10 @@ def fit_model(**kwargs):
     net = build_model(p)
     X_output_var = get_output(net["dec_output"], X_var)
     params = get_all_params(net["dec_output"], trainable=True)
-    mse_var = squared_error(X_var, X_output_var).mean()
+    mse = squared_error(X_var, X_output_var).mean()
     updates = adam(mse_var, params, learning_rate=2e-3)
-    mse = theano.function([X_var], mse_var, updates=updates)
+    mse_train = theano.function([X_var], mse, updates=updates)
+    mse_val = theano.function([X_var], mse)
 
     print("Starting training...")
     monitor = Monitor(p.num_epochs)
@@ -78,12 +79,12 @@ def fit_model(**kwargs):
         with sw:
             train_err, train_batches = 0, 0
             for Xb in iter_minibatches(X_train, p.batch_size):
-                train_err += mse(Xb)
+                train_err += mse_train(Xb)
                 train_batches += 1
 
             val_err, val_batches = 0, 0
             for Xb in iter_minibatches(X_val, p.batch_size):
-                val_err += mse(Xb)
+                val_err += mse_val(Xb)
                 val_batches += 1
 
         snapshot = get_all_param_values(net["dec_output"])
