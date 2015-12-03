@@ -9,7 +9,9 @@
 
 \input{presentation-base}
 
-\title{Variational Auto-Encoder and normalizing flows}
+\title{Variational Auto-Encoder \\
+  and \\
+  Normalizing Flows}
 \author{S. Lebedev, E. Tuzova}
 \institute{JetBrains}
 \date{\today}
@@ -57,7 +59,7 @@
     \begin{minipage}[t]{.55\linewidth}
       % $X = \left\{ x^{(i)}\right\}_{i=1}^N~-$ dataset\\
       $x$ --- observed variables\\
-      $z$ --- \underline{continuous} latent variables\\
+      $z$ --- \hl{continuous} latent variables\\
       $\theta$ --- model parameters\\
       % $\phi~-$ variational parameters\\
       $p_{\theta}(x, z) = p_{\theta}(x|z) p_{\theta}(z)$ --- joint p.d.f.\\
@@ -69,9 +71,9 @@
     in the ``real-world'' scenario.
   \item Specifically when
     \begin{itemize}
-    \item evidence is \underline{intractable},
+    \item evidence is \hl{intractable},
     \item so is the posterior for latent variables.
-    \item Mean-field VB is \underline{not applicable} because the integrals
+    \item Mean-field VB is \hl{not applicable} because the integrals
       required are intractable as well.
     \end{itemize}
   \end{itemize}
@@ -278,24 +280,14 @@
   \begin{itemize}
   \item $\mu(z)$ and $\sigma(z)$ are neural nets
   \end{itemize}
-  %% TODO: move the dec/enc view here?
+
+  $L(\theta, \phi; x^{(i)}) \simeq \frac{1}{2} \sum\limits_{j=1}^J (1 + \log ((\sigma_j^{(i)})^2) -
+  (\mu_j^{(i)})^2 - (\sigma_j^{(i)})^2) + \frac{1}{L} \sum\limits_{l=1}^L \log p_{\theta} (x^{(i)}|z^{(i,l)})$\\
+  where $z^{(i,l)} = \mu^{(i)} + \sigma^{(i)} \odot \varepsilon^{(l)}$ and $\varepsilon^{(l)} \sim \mathcal{N}(0,I)$
 \end{frame}
 
 
-\begin{frame}[fragile]{VAE inference model}
-  \textcolor{darkred}{The VAE approach}: introduce an inference model that
-  learns to approximate the intractable posterior by optimizing the variational lower bound:
-  $$ \mathcal{L}(\theta, \phi, x) = -\mathbb{D}_{KL}[q_{\phi} (z|x) \parallel p(z)] +
-  \mathbb{E}_q [\log p_\theta (x|z)] $$
-  We parameterize with another neural network:
-  \begin{figure}[htbp]
-    \includegraphics[height=130pt, keepaspectratio = true]{images/vae}
-  \end{figure}
-  \tiny \textcolor{gray}{http://videolectures.net/deeplearning2015\_courville\_autoencoder\_extension}
-\end{frame}
-
-% 13
-\begin{frame}[fragile]{Coding theory perspective}
+\begin{frame}{VAE illustrated}
   The unobserved variables $z$ have an interpretation as a latent representation or code.
 
   \begin{itemize}
@@ -307,27 +299,21 @@
   \end{itemize}
 \end{frame}
 
-% 14
-\begin{frame}[fragile]{Variational Auto-Encoder}
-  $p_{\theta}(z) = \mathcal{N}(z;0, I)$\\
-  $p_{\theta}(x|z) ~-$ multivariate Gaussian, distribution parameters are computed from
-  $z$ with a MLP\\
-  $p_{\theta}(z|x) ~-$ intractable, takes on an approximate Gaussian form with an approximately diagonal covariance\\
-  ~\\
-  $q_{\phi}(z|x^{(i)}) = \log \mathcal{N}(z; \mu^{(i)}, \sigma^{2(i)} I) $\\
-  $\mu^{(i)}, \sigma^{(i)} ~-$ outputs of the encoding MLP\\
-  ~\\
-  $L(\theta, \phi; x^{(i)}) \simeq \frac{1}{2} \sum\limits_{j=1}^J (1 + \log ((\sigma_j^{(i)})^2) -
-  (\mu_j^{(i)})^2 - (\sigma_j^{(i)})^2) + \frac{1}{L} \sum\limits_{l=1}^L \log p_{\theta} (x^{(i)}|z^{(i,l)})$\\
-  where $z^{(i,l)} = \mu^{(i)} + \sigma^{(i)} \odot \varepsilon^{(l)}$ and $\varepsilon^{(l)} \sim \mathcal{N}(0,I)$
+
+\begin{frame}{Experiments: MNIST}
 \end{frame}
 
-% 15
-\begin{frame}[fragile]{Model restriction}
-  How can we get closer to $p_{\theta}(z|x)$?
+
+\begin{frame}{Experiments: Frey faces}
 \end{frame}
 
-% 16
+
+\begin{frame}[c,noframenumbering,plain]
+  \centering\fontsize{24pt}{1em}\color{darkred}{\selectfont{What is wrong with VAE?}}
+\end{frame}
+
+
+%% TODO: what is wrong with VAE? Answer: q(z|x) is diag. gaussian.
 \begin{frame}[fragile]{Normalizing flows}
   \textcolor{darkred}{Normalizing flows}: the transformation of a probability density through
   a sequence of invertible mappings.
@@ -341,9 +327,12 @@
 
 % 17
 \begin{frame}[fragile]{Normalizing flows}
-  Transformation of random variables: $z' = f(z)$, $f^{-1}(z') = z$\\
-  $$q(z') = q(z) \left\vert \det \frac{\partial f^{-1}(z')}{\partial z'} \right\vert =
-  q(z) \left\vert \det \frac{\partial f(z')}{\partial z'} \right\vert^{-1}$$\\
+  Transformation of random variables: $\tilde{z} = f(z)$, $f^{-1}(\tilde{z}) = z$\\
+  $$
+  q(\tilde{z})
+  = q(f^{-1}(\tilde{z})) \left\vert \det \frac{\partial f^{-1}(\tilde{z})}{\partial \tilde{z}} \right\vert
+  = q(z) \left\vert \det \frac{\partial f(\tilde{z})}{\partial \tilde{z}} \right\vert^{-1}
+  $$ \\
   Chaining together a sequence: $z_K = f_K \circ f_{K−1} \circ \cdots \circ f_2 \circ f_1(z_0)$\\
   $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert $$
 
@@ -351,6 +340,7 @@
   $$\mathbb{E}_{q_K} \left[g(z_K)\right] = \mathbb{E}_{q_0} \left[ g(f_K \circ f_{K−1} \circ \cdots \circ f_2
   \circ f_1(z_0)) \right] $$
 \end{frame}
+%%TODO: inverse function th., def. function of RV.
 
 % 18
 \begin{frame}[fragile]{Planar flow}
@@ -364,6 +354,7 @@
   the direction perpendicular to the hyperplane $w^Tz+b = 0$.
 
   % TODO: картиночки (применение потока + обучение потока)
+  %% TODO: invert. conditions
 \end{frame}
 
 % 19
@@ -375,17 +366,32 @@
   $\det \left\vert \frac{\partial f}{\partial z} \right\vert = [1 + \beta h(\alpha, r)]^{(d-1)}
   [1 + \beta h(\alpha, r) + h'(\alpha, r) r]$\\
   ~\\
-  This flow applies radial contractions and expansions around the reference point $z_0$.
+  This flow applies radial contractions and expansions around the reference
+  point $z_0$.
+
+  % TODO: картиночки (применение потока + обучение потока)
+  %% TODO: invert. conditions
 \end{frame}
 
 % 20
-\begin{frame}[fragile]{Examples}
-  TODO
-  % картинка про поток?
+\begin{frame}[fragile]{Representative power of normalizing flows}
 \end{frame}
 
+%% TODO: maybe radial flows
+
+
+\begin{frame}[fragile]{VAE and NF}
+  Normalizing flow integration into the VAE:\\
+  \begin{figure}[htbp]
+    \includegraphics[height=130pt, keepaspectratio = true]{images/norFlow}
+  \end{figure}
+  ~\\
+  \tiny \textcolor{gray}{http://arxiv.org/pdf/1505.05770v4.pdf}
+\end{frame}
+
+
 % 21
-\begin{frame}[fragile]{Variational lower bound}
+\begin{frame}[fragile]{ELBO with planar normalizing flow}
   \begin{align*}
   \mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q_\phi(z|x)} \left[ \log p_\theta(x, z) - \log q_\phi(z | x) \right] \\
   &= \mathbb{E}_{q_K(z_K)} \left[ \log p(x, z_K) - \log q(z_K) \right] \\
@@ -393,6 +399,7 @@
   \frac{\partial f_k}  {\partial z_k} \right\vert \right]
   \end{align*}
 \end{frame}
+
 
 % 22
 \begin{frame}[fragile]{Algorithm}
@@ -409,33 +416,27 @@
     \Return $\theta$, $\phi$
   \end{algorithmic}
 
+  %% TODO: make sure it matches VAE algorithm.
 \end{frame}
 
-% 23
-\begin{frame}[fragile]{Algorithm}
-  Normalizing flow integration into the VAE:\\
-  \begin{figure}[htbp]
-    \includegraphics[height=130pt, keepaspectratio = true]{images/norFlow}
-  \end{figure}
-  ~\\
-  \tiny \textcolor{gray}{http://arxiv.org/pdf/1505.05770v4.pdf}
-\end{frame}
 
 % 24
-\begin{frame}[fragile]{MNIST (vae, vae+nf)}
+\begin{frame}[fragile]{Experiments: MNIST}
   TODO
-  %картинки
+  % картинки
   % график ELBO
 \end{frame}
 
+
 % 25
-\begin{frame}[fragile]{Frey Faces}
+\begin{frame}[fragile]{Experiemnts: Frey faces}
   TODO
   %картинки
 \end{frame}
 
+
 % 26
-\begin{frame}[fragile]{Future experiments}
+\begin{frame}[fragile]{Conclusions and future directions}
   TODO
 \end{frame}
 
