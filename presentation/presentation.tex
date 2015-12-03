@@ -230,15 +230,16 @@
       &= \E{q(z|x, \phi)}{\log p(x, z|\theta) - \log q(z|x, \phi)} \\
       &\approx \frac{1}{S} \sum\limits_{s = 1}^S
             \log p(x, z^{(s)}|\theta) - \log q(z^{(s)}|x, \phi) \\
-      &\triangleq \widetilde{\mathcal{L}}(\theta, \phi; x)
+      &\triangleq \widetilde{\mathcal{L}}(\theta, \phi; x, z)
     \end{align*}
     where $z^{(s)} = g(\epsilon^{(s)}, x; \phi)$ and $\epsilon^{(s)} \sim p(\epsilon)$.
   \item If $\KL{q(z|x, \phi)}{p(z|\theta)}$ is tractable
     \begin{align*}
       \mathcal{L}(\theta, \phi; x)
       &= \E{q(z|x, \phi)}{\log p(x|z, \theta)} - \KL{q(z|x, \phi)}{p(z|\theta)} \\
-      &\approx \frac{1}{S} \sum\limits_{s = 1}^S \log p(x|z, \theta)
-       - \KL{q(z|x, \phi)}{p(z|\theta)}
+      &\approx \frac{1}{S} \sum\limits_{s = 1}^S \log p(x|z^{(s)}, \theta)
+       - \KL{q(z|x, \phi)}{p(z|\theta)} \\
+      &\triangleq \widetilde{\mathcal{L}}(\theta, \phi; x, z)
     \end{align*}
   \end{itemize}
 \end{frame}
@@ -252,8 +253,9 @@
     \Repeat
        \State $x \gets$ random datapoint or minibatch
        \State $\epsilon \gets$ random samples from $p(\epsilon)$
+       \State $z \gets g(\epsilon, x; \phi)$
        \State $g_\theta, g_\phi \gets \grad_{\phi, \theta} %
-           \mathcal{\widetilde{L}}(\theta, \phi; x, \epsilon)$
+           \mathcal{\widetilde{L}}(\theta, \phi; x, z)$
        \State $\theta \gets \theta + \alpha g_\theta$
        \State $\phi \gets \phi + \alpha g_\phi$
     \Until convergence \\
@@ -332,22 +334,25 @@
   \begin{figure}
     \centering
     \begin{subfigure}[b]{.4\linewidth}
-      \includegraphics[width=\linewidth]{images/vae_frey_B100_E4000_N560_L2_H200_C_manifold_8}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/vae_frey_B100_E4000_N560_L2_H200_C_manifold_8}
       \caption{Learned data manifold}
     \end{subfigure}
     \hspace{1em}
     \begin{subfigure}[b]{.4\linewidth}
-      \includegraphics[width=\textwidth]{images/vae_frey_B100_E4000_N560_L2_H200_C_sample_64}
-      \caption{Samples}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/vae_frey_B100_E4000_N560_L2_H200_C_sample_64}
+      \caption{Random samples}
     \end{subfigure}
   \end{figure}
 
-  % \begin{tabular}{cc}
-  %   \textbf{Model} & \textbf{MSE} \\
-  %   \hline
-  %   AE  & \\
-  %   VAE &
-  % \end{tabular}
+  \centering
+  \begin{tabular}{cc}
+    \textbf{Model} & \textbf{MSE} \\
+    \hline
+    AE  & \\
+    VAE &
+  \end{tabular}
 \end{frame}
 
 
@@ -451,21 +456,22 @@
 
 
 % 22
-\begin{frame}[fragile]{Algorithm}
+\begin{frame}[fragile]{Modified AEVB algorithm}
   \begin{algorithmic}
+    \State $\alpha \gets$ set learning rate
     \State $\theta, \phi \gets$ initialize parameters
     \Repeat
-       \State $X^M \gets$ Random minibatch of $M$ datapoints
-       \State $z_0 \sim q_0(\bullet|x)$
-       \State $z_k \gets f_K \circ f_{K-1} \circ \cdots \circ f_1(z_0)$
-       \State $L(x) \approx L(x, z_k)$
-       \State $g \gets \nabla_{\phi, \theta} \mathcal{L}^M(\theta, \phi; X^M, \varepsilon) $ Gradients of minibatch estimator
-       \State $\theta, \phi \gets$ Update parameters using gradients $g$
-    \Until {convergence of parameters $\theta$, $\phi$}\\
+       \State $x \gets$ random datapoint or minibatch
+       \State $\epsilon \gets$ random samples from $p(\epsilon)$
+       \hl{\State $z_0 \gets g(\epsilon, x; \phi)$}
+       \hl{\State $z_K \gets f_K(f_{K-1}(\cdots(f_1(z_0))))$}
+       \State $g_\theta, g_\phi \gets \grad_{\phi, \theta} %
+           \mathcal{\widetilde{L}}(\theta, \phi; x, z_K)$
+       \State $\theta \gets \theta + \alpha g_\theta$
+       \State $\phi \gets \phi + \alpha g_\phi$
+    \Until convergence \\
     \Return $\theta$, $\phi$
   \end{algorithmic}
-
-  %% TODO: make sure it matches VAE algorithm.
 \end{frame}
 
 
