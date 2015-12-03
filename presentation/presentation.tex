@@ -147,58 +147,108 @@
       \grad_\theta \mathcal{L}(\theta, \phi; x)
       &= \grad_\theta \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
       &= \E{q_\phi(z|x)}{\grad_\theta \log p_\theta(x, z)} \\
-      &= \frac{1}{L} \sum\limits_{l = 1}^L \grad_\theta \log p_\theta(x, z_l) \\
+      &\approx \frac{1}{S} \sum\limits_{s = 1}^S \grad_\theta \log p_\theta(x, z^{(s)}) \\
       \grad_\phi \mathcal{L}(\theta, \phi; x)
-      &= \grad_\phi \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)}
+      &= \grad_\phi \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
+      &= -\grad_\phi \E{q_\phi(z|x)}{\log q_\phi(z|x)}
        = \op{:(}
     \end{align*}
-  \item How to deal with the gradient w.r.t variational parameters $\phi$?
+  \item How to deal with the gradients of the form $\grad_\phi \E{q_\phi(z)}{f(z)}$?
   \end{itemize}
 \end{frame}
 
 
-\begin{frame}{Na\"ive MCMC estimator of $\grad_\phi \mathcal{L}(\theta, \phi; x)$}
+\begin{frame}{Na\"ive MCMC estimator of $\grad_\phi \E{q_\phi(z)}{f(z)}$}
+  \begin{align*}
+    \grad_\phi \E{q_\phi(z)}{f(z)}
+    &= \grad_\phi \int q_\phi(z) f(z) dz
+     = \int f(z) \grad_\phi q_\phi(z) dz \\
+    &= \int f(z) q_\phi(z) \grad_\phi \log q_\phi(z) dz
+  \end{align*}
+  where the last line is due to the log derivative
+  trick\footnote{%
+    \url{http://blog.shakirm.com/2015/11/machine-learning-trick-of-the-day-5-log-derivative-trick}}
+  $$
+  \grad_\phi \log q(z|x) = \frac{\grad_\phi q(z|x)}{q(z|x)}
+  $$
+  Proceeding further we obtain
+  \begin{align*}
+    \grad_\phi \E{q_\phi(z)}{f(z)}
+    &= \E{q_\phi(z|x)}{f(z) \grad_\phi \log q_\phi(z)} \\
+    &\approx \frac{1}{S} \sum\limits_{s = 1}^S f(z^{(s)}) \grad_\phi \log q_\phi(z^{(s)})
+    \to \op{:(}
+  \end{align*}
 
+  %% TODO: covariance of sample mean is Cov(mean(X)) = Cov(X) / S,
+  %% thus if the diagonal entries in Cov(X) are large, S must be
+  %% large as well.
 \end{frame}
 
 
-\begin{frame}{Reparametrization trick}
-  \textcolor{darkred}{Idea}: Alternative method for generating samples from $q_{\phi}(z|x)$
-  ~\\
-  \begin{enumerate}
-    \item $z \sim q_{\phi}(z|x)~-$ conditional distribution
-    \item Express $z$ as deterministic variable $z = g_{\phi}(\varepsilon, x)$\\
-      where $\varepsilon$ is an auxiliary variable. $\varepsilon \sim p(\varepsilon)$
-  \end{enumerate}
-~\\
-  $\mathbb{E}_{q_{\phi}}[f(z)] = \mathbb{E}_{p_{\varepsilon}} \left[ f(g_{\phi}(\varepsilon, x)) \right] \simeq
-  \frac{1}{L} \sum\limits_{l=1}^L f(g_{\phi}(\varepsilon^{(l)}, x))$
+\begin{frame}{Reparametrization trick%
+  \footnote{\url{http://blog.shakirm.com/2015/10/machine-learning-trick-of-the-day-4-reparameterisation-tricks}}}
+  \begin{itemize}
+  \item Introduce an auxilary noise variable $\epsilon$ independent of $\phi$.
+  \item Express $z$ as a determinisitic transformation of $\epsilon$
+    differentiable w.r.t. $\phi$
+    $$
+    z = g_\phi(\epsilon, x)
+    \qquad
+    \epsilon \sim p(\epsilon)
+    $$
+  \item Plug the transformed variable into the expectation
+    \begin{align*}
+      \E{q_\phi(z|x)}{f(z)}
+      = \E{p(\epsilon)}{f(g_\phi(\epsilon, x)}
+      = \frac{1}{S} \sum\limits_{s = 1}^S f(g_\phi(\epsilon^{(l)}, x))
+    \end{align*}
+  \item A trivial but useful example:
+    \begin{align*}
+      q_\phi(z|x) = \mathcal{N}(z; \mu, \sigma^2)
+      \qquad
+      z = \mu + \sigma\epsilon
+      \qquad
+      \epsilon \sim \mathcal{N}(0, 1)
+    \end{align*}
+    \begin{align*}
+      \grad_\phi \E{q_\phi(z)}{f_\theta(z)}
+      = \E{\mathcal{N}(\epsilon; 0, 1)}{\grad_\phi f_\theta(\mu + \sigma \varepsilon)}
+    \end{align*}
+  \end{itemize}
 \end{frame}
 
 
-\begin{frame}[fragile]{Reparametrization trick. Gaussian case}
-  \begin{enumerate}
-    \item $q_\phi(z|x) = \mathcal{N}(z; \mu, \sigma^2)$
-    \item $z = \mu + \sigma\varepsilon$ ~~ where $\varepsilon \sim \mathcal{N}(0, 1)$
-  \end{enumerate}
-  ~\\
-  $\nabla_{\phi} \mathbb{E}_{q_{\phi}(z)} [f_{\theta}(z)] \Leftrightarrow
-  \mathbb{E}_{\mathcal{N}(\varepsilon| 0, 1)} [\nabla_{\phi} f_{\theta} (\mu + \sigma \varepsilon)]$
+\begin{frame}[fragile]{SGVB estimator}
+  \begin{align*}
+    \mathcal{L}(\theta, \phi; x)
+    &= \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
+    &\approx \frac{1}{S} \sum\limits_{s = 1}^S
+          \log p_\theta(x, z^{(s)}) - \log q_\phi(z^{(s)}|x) \\
+    &\doteq \tilde{\mathcal{L}}(\theta, \phi; x)
+  \end{align*}
+  where
+  \begin{align*}
+    z^{(s)} = g_\phi(\epsilon^{(s)}, x)
+    \qquad
+    \epsilon^{(s)} \sim p(\epsilon)
+  \end{align*}
 \end{frame}
 
+%% TODO: the case of tractable KL? since we use it in experiments.
 
-\begin{frame}[fragile]{Algorithm}
+\begin{frame}{AEVB algorithm}
+  \centering
   \begin{algorithmic}
     \State $\theta, \phi \gets$ initialize parameters
     \Repeat
-       \State $X^M \gets$ Random minibatch of $M$ datapoints
-       \State $\varepsilon \gets$ Random samples from noise distribution $p(\varepsilon)$
-       \State $g \gets \nabla_{\phi, \theta} \mathcal{L}^M(\theta, \phi; X^M, \varepsilon) $ Gradients of minibatch estimator
-       \State $\theta, \phi \gets$ Update parameters using gradients $g$
-    \Until {convergence of parameters $\theta$, $\phi$}\\
+       \State $X^M \gets$ random minibatch of $M$ datapoints
+       \State $\epsilon \gets$ random samples from $p(\epsilon)$
+       \State $g_\theta, g_\phi \gets \grad_{\phi, \theta} \mathcal{\tilde{L}}(\theta, \phi; X^M, \epsilon)$
+       \State $\theta \gets \theta + \alpha g_\theta$
+       \State $\phi \gets \phi + \alpha g_\phi$
+    \Until convergence of parameters $\theta$, $\phi$ \\
     \Return $\theta$, $\phi$
   \end{algorithmic}
-
 \end{frame}
 
 
