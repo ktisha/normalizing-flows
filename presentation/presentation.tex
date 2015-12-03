@@ -9,6 +9,8 @@
 
 \usepackage{mathtools}  %% for \underbrace
 
+\usepackage{subcaption}
+
 \input{presentation-base}
 
 \title{Variational Auto-Encoder \\
@@ -322,10 +324,30 @@
 
 
 \begin{frame}{Experiments: MNIST}
+
 \end{frame}
 
 
 \begin{frame}{Experiments: Frey faces}
+  \begin{figure}
+    \centering
+    \begin{subfigure}[b]{.4\linewidth}
+      \includegraphics[width=\linewidth]{images/vae_frey_B100_E4000_N560_L2_H200_C_manifold_8}
+      \caption{Learned data manifold}
+    \end{subfigure}
+    \hspace{1em}
+    \begin{subfigure}[b]{.4\linewidth}
+      \includegraphics[width=\textwidth]{images/vae_frey_B100_E4000_N560_L2_H200_C_sample_64}
+      \caption{Samples}
+    \end{subfigure}
+  \end{figure}
+
+  % \begin{tabular}{cc}
+  %   \textbf{Model} & \textbf{MSE} \\
+  %   \hline
+  %   AE  & \\
+  %   VAE &
+  % \end{tabular}
 \end{frame}
 
 
@@ -396,13 +418,24 @@
 \end{frame}
 
 
-\begin{frame}[fragile]{VAE and NF}
-  Normalizing flow integration into the VAE:\\
-  \begin{figure}[htbp]
-    \includegraphics[height=130pt, keepaspectratio = true]{images/norFlow}
-  \end{figure}
-  ~\\
-  \tiny \textcolor{gray}{http://arxiv.org/pdf/1505.05770v4.pdf}
+\begin{frame}{VAE and normalizing flows}
+  \centering
+  \begin{tikzpicture}
+    \node[obs]                 (x1) {$\mathbf{x}$};
+    \node[latent, below=of x1] (zK) {$\mathbf{z_K}$};
+    \node[latent, below=of zK] (z0) {$\mathbf{z_0}$};
+    \node[latent, left=of z0]  (e) {$\epsilon$};
+    \node[obs, below=of z0]    (x2) {$\mathbf{x}$};
+
+    \node[below=of e, yshift=2em, align=center] {injected\\noise};
+    \path (zK) edge [->] node [midway, right, xshift=2em]
+        {$p(x|z, \theta)$ \hl{aka} decoder} (x1);
+    \path (x2) edge [->, dashed] node [midway, right, xshift=2em]
+        {$q(z_0|x, \phi)$ \hl{aka} encoder} (z0);
+    \path (z0) edge [->] node [midway, right, xshift=2em]
+        {normalizing flow} (zK);
+    \edge {e} {z0};
+  \end{tikzpicture}
 \end{frame}
 
 
@@ -453,7 +486,9 @@
 
 % 26
 \begin{frame}[fragile]{Conclusions and future directions}
-  TODO
+  \begin{itemize}
+  \item
+  \end{itemize}
 \end{frame}
 
 \end{document}
