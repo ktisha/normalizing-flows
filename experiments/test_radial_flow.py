@@ -24,7 +24,7 @@ def plot(*args):
             col = 0
             row += 1
 
-        plot_sample(args[i], flow_len, _grid[i] if len_args < 5 else _grid[row][col], False)
+        plot_sample(args[i], flow_len, _grid[i] if len_args <= 5 else _grid[row][col], False)
 
 
 
@@ -41,20 +41,21 @@ if __name__ == '__main__':
     f = make_flow(flow_len)
 
     Z_0 = np.random.normal(0, 1, [100000, 2])
-    z0 = np.random.normal(2, 10, [flow_len, 2])
+    z0 = np.random.random([flow_len, 2])
     alpha = np.random.random(flow_len)
     beta = np.random.random(flow_len)
 
     array = [Z_0]
 
-    for m in range(1, 8):
+    for m in range(1, 20, 10):
         array.append(f(Z_0, z0, alpha, beta*m))
 
-    for m in range(1, 8):
-        array.append(f(Z_0, z0, alpha*m, beta))
-
-    for m in range(1, 8):
-        array.append(f(Z_0, z0*m, alpha, beta))
+    # for m in range(1, 20):
+    array.append(f(Z_0, z0, alpha*10, beta))
+    array.append(f(Z_0, z0, alpha/10, beta))
+    #
+    # for m in range(1, 8):
+    # array.append(f(Z_0, z0*m, alpha, beta))
 
     plot(*array)
 
