@@ -9,7 +9,7 @@
 
 \input{presentation-base}
 
-\title{Variational Auto-Encoder and extensions}
+\title{Variational Auto-Encoder and normalizing flows}
 \author{S. Lebedev, E. Tuzova}
 \institute{JetBrains}
 \date{\today}
@@ -23,127 +23,146 @@
   \maketitle
 \end{frame}
 
-% 2
-\begin{frame}[fragile]{Continuous latent variable model}
+
+\begin{frame}{Motivation\footnote{Slide credit: G. Hinton, CSC2515, <<Continuous
+      Latent Variable Models>>.}}
   \begin{center}
-    \begin{tikzpicture}
-      \node[latent]            (z) {$\mathbf{z}$};
-      \node[obs, below=of z]   (x) {$\mathbf{x}$};
-      \node[const, right=of z] (t) {$\theta$};
-      \node[const, left=of x, xshift=2em]   (lfantom) {};
-      \node[const, right=of x, xshift=-2em] (rfantom) {};
-
-      \edge {z} {x};
-      \draw (x) edge [->,dashed,bend left=45] (z);
-      \edge {t} {x,z};
-
-      \plate {xz} {(x)(z)(lfantom)(rfantom)} {$~N$};
-    \end{tikzpicture}
+    \includegraphics[width=.8\textwidth]{images/motivation}
   \end{center}
 
-%  $X = \left\{ x^{(i)}\right\}_{i=1}^N~-$ dataset\\
-  $x~-$ observed variables\\
-  $z~-$ continuous latent variables\\
-  $\theta~-$ model parameters\\
-%  $\phi~-$ variational parameters\\
-  $p_{\theta}(x, z)~-$ joint probability density function\\
-
-  %% TODO: motivation for continuous latent variables? as in
-  %%       https://www.cs.toronto.edu/~hinton/csc2515/notes/lec7middle.pdf
-  %% TODO: examples of these models, PCA, factor analysis, linear regression.
-\end{frame}
-
-% 3
-\begin{frame}[fragile]{Back to real life}
-	\begin{enumerate}
-    \item Evidence \emph{aka} marginal likelihood \sout{can be} is almost always
-      intractable
-      $$
-      p_{\theta}(x) = \int {p_{\theta}(z) p_{\theta}(x|z) dz}
-      $$
-    \item So is the posterior for latent variables
-      $$
-      p_{\theta}(z|x) = \frac{p_{\theta}(x|z) p_{\theta}(z)}{p_{\theta}(x)}
-      $$
-    \item Mean-field VB is not applicable because the integrals required are
-      intractable as well
-    \item The dataset is too large to work with at once $\rightarrow$
-      minibatches is the best we can do
-    \end{enumerate}
-\end{frame}
-
-% 4
-\begin{frame}[fragile]{Goals}
   \begin{itemize}
-  % \item Basically, make it work no matter what.
-  \item \textbf{Efficiently} approximate
+  \item What are the underlying latent dimensions in these two datasets?
+  \item How do we find these from the data?
+  \end{itemize}
+\end{frame}
+
+% 2
+\begin{frame}[fragile]{Problem scenario}
+  \begin{center}
+    \begin{minipage}[t]{.3\linewidth}
+      \begin{tikzpicture}[baseline=0]
+        \node[latent]            (z) {$\mathbf{z}$};
+        \node[obs, below=of z]   (x) {$\mathbf{x}$};
+        \node[const, right=of z] (t) {$\theta$};
+        \node[const, left=of x, xshift=2em]   (lfantom) {};
+        \node[const, right=of x, xshift=-2em] (rfantom) {};
+
+        \edge {z} {x};
+        %\draw (x) edge [->,dashed,bend left=45] (z);
+        \edge {t} {x,z};
+
+        \plate {xz} {(x)(z)(lfantom)(rfantom)} {$~N$};
+      \end{tikzpicture}
+    \end{minipage}
+    \begin{minipage}[t]{.55\linewidth}
+      % $X = \left\{ x^{(i)}\right\}_{i=1}^N~-$ dataset\\
+      $x$ --- observed variables\\
+      $z$ --- \underline{continuous} latent variables\\
+      $\theta$ --- model parameters\\
+      % $\phi~-$ variational parameters\\
+      $p_{\theta}(x, z) = p_{\theta}(x|z) p_{\theta}(z)$ --- joint p.d.f.\\
+    \end{minipage}
+  \end{center}
+
+  \begin{itemize}
+  \item Goal: fast approximate posterior inference for the latent variables
+    in the ``real-world'' scenario.
+  \item Specifically when
     \begin{itemize}
-    \item ML or MAP estimate for the parameters $\theta$
-    \item the predictive posterior $p_{\theta}(z|x)$
-    \item the evidence $p_{\theta}(x)$
+    \item evidence is \underline{intractable},
+    \item so is the posterior for latent variables.
+    \item Mean-field VB is \underline{not applicable} because the integrals
+      required are intractable as well.
     \end{itemize}
   \end{itemize}
-  %% TODO: why each particular goal?
-  %% TODO: but HOW do we do all that? Sai no more. Variational inference to the rescue.
+
+  %% TODO: scalable as well? or expand on fast.
 \end{frame}
 
-%5
-\begin{frame}[fragile]{Variational inference}
-  Introduce parametric model $q_{\phi}(z|x)$ with variational parameters $\phi$\\
-  ~\\
-  \textcolor{darkred}{Idea}: Construct estimator of the variational lower bound which we can optimize jointly
-  w.r.t. $\phi$ and $\theta$\\
-  ~\\
-  Pro:
+
+\begin{frame}{What are the options?}
   \begin{itemize}
-    \item Stochastic optimization
-    \item Convergence
+  \item MCMC
+    \begin{itemize}
+    \item slow for large-scale problems,
+    \item diagnosing convergence is an issue.
+    \end{itemize}
+  \item MAP
+    \begin{itemize}
+    \item easy to overfit the data,
+    \item especially in the case of high-dimensional $z$.
+    \end{itemize}
+  \item VB
+    \begin{itemize}
+    \item mean-field cannot be applied directly,
+    \item but still a good idea,
+    \item maybe.
+    \end{itemize}
   \end{itemize}
-
 \end{frame}
 
-% 6
-\begin{frame}[fragile]{Variational lower bound}
-	\begin{align*}
-		\log {p_\theta (x)} &= \log \int {p_\theta (x|z) p_\theta(z) dz} \\
-		&= \log \int{ \frac{q_\phi (z|x)}{q_\phi (z|x)} p_\theta (x|z) p_{\theta}(z) dz} \\
-		&\ge -\mathbb{D}_{KL}[q_\phi (z|x) \parallel p_{\theta}(z)] + \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)]
-		= \mathcal{L}(\theta, \phi; x)
-	\end{align*}
 
+\begin{frame}{The plan}
+  \begin{enumerate}
+  \item Approximate the posterior with a neural net
+    $q_{\phi}(z|x)$, where $\phi$ --- variational parameters.
+  \item Lower bound the evidence using $q_{\phi}(z|x)$.
+  \item Construct an estimator of the ELBO which can be
+    optimized jointly w.r.t. $\phi$ and $\theta$.
+  \item Use stochastic gradient ascent.
+  \item Profit.
+  \end{enumerate}
+\end{frame}
+
+
+\begin{frame}{Encoder-decoder perspective}
+  %% TODO
+\end{frame}
+
+
+\begin{frame}{ELBO}
+  Having $q_\phi(z|x)$ we can deconstruct the evidence into
+  $$
+  \log p_\theta(x) = \KL{q_\phi(z|x)}{p_\theta(z|x)} + \mathcal{L}(\theta, \phi; x)
+  $$
+  where the lower bound is given by
+  \begin{align*}
+    \mathcal{L}(\theta, \phi; x)
+    &= \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
+    &= -\KL{q_\phi (z|x)}{p_\theta(z)} + \E{q_\phi(z|x)}{\log p_\theta (x|z)}
+  \end{align*}
+
+  % \begin{itemize}
+  %   \item $q(z|x)$ is not necessarily factorial
+  %   \item Parameters $\phi$ are not computed from some closed-form expectation
+  % \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Optimizing the ELBO}
   \begin{itemize}
-    \item $q(z|x)$ is not necessarily factorial
-    \item Parameters $\phi$ are not computed from some closed-form expectation
+  \item Want to optimize the lower bound w.r.t both $\theta$ and $\phi$.
+  \item Just-do-it approach:
+    \begin{align*}
+      \grad_\theta \mathcal{L}(\theta, \phi; x)
+      &= \grad_\theta \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)} \\
+      &= \E{q_\phi(z|x)}{\grad_\theta \log p_\theta(x, z)} \\
+      &= \frac{1}{L} \sum\limits_{l = 1}^L \grad_\theta \log p_\theta(x, z_l) \\
+      \grad_\phi \mathcal{L}(\theta, \phi; x)
+      &= \grad_\phi \E{q_\phi(z|x)}{\log p_\theta(x, z) - \log q_\phi(z|x)}
+       = \op{:(}
+    \end{align*}
+  \item How to deal with the gradient w.r.t variational parameters $\phi$?
   \end{itemize}
+\end{frame}
 
-% \tiny \textcolor{gray}{Used Jensen's inequality}
+
+\begin{frame}{Na\"ive MCMC estimator of $\grad_\phi \mathcal{L}(\theta, \phi; x)$}
 
 \end{frame}
 
-% 7
-\begin{frame}[fragile]{AEVB}
 
-
-  TODO
-  % везде нейросети
-  % переход к minibatch
-
-\end{frame}
-
-% 8
-\begin{frame}[fragile]{Standart Monte-Carlo ELBO}
-%  \textcolor{darkred}{Problem}: Efficient computation of $\nabla_{\phi} \mathbb{E}_{q_{\phi}} [\log p_\theta (x|z)] $\\
-%  ~\\
-  $\nabla_{\phi} \mathbb{E}_{q_{\phi}} [f(z)] = \mathbb{E}_{q_{\phi}(z)} \left[ f(z) \nabla_{\phi}
-  \log q_{\phi}(z) \right] \simeq \frac{1}{L} \sum\limits_{l=1}^L f(z) \nabla_{\phi} \log q_{\phi}(z^{(l)})$\\
-  ~\\
-  where $z^{(l)} \sim q_{\phi}(z|x)$\\
-  ~\\
-  \textcolor{darkred}{Problem}: Exhibits high variance
-\end{frame}
-
-% 9
-\begin{frame}[fragile]{Reparametrization trick}
+\begin{frame}{Reparametrization trick}
   \textcolor{darkred}{Idea}: Alternative method for generating samples from $q_{\phi}(z|x)$
   ~\\
   \begin{enumerate}
@@ -156,7 +175,7 @@
   \frac{1}{L} \sum\limits_{l=1}^L f(g_{\phi}(\varepsilon^{(l)}, x))$
 \end{frame}
 
-% 10
+
 \begin{frame}[fragile]{Reparametrization trick. Gaussian case}
   \begin{enumerate}
     \item $q_\phi(z|x) = \mathcal{N}(z; \mu, \sigma^2)$
@@ -167,7 +186,7 @@
   \mathbb{E}_{\mathcal{N}(\varepsilon| 0, 1)} [\nabla_{\phi} f_{\theta} (\mu + \sigma \varepsilon)]$
 \end{frame}
 
-% 11
+
 \begin{frame}[fragile]{Algorithm}
   \begin{algorithmic}
     \State $\theta, \phi \gets$ initialize parameters
@@ -182,7 +201,7 @@
 
 \end{frame}
 
-% 12
+
 \begin{frame}[fragile]{VAE inference model}
   \textcolor{darkred}{The VAE approach}: introduce an inference model that
   learns to approximate the intractable posterior by optimizing the variational lower bound:
@@ -330,7 +349,7 @@
 \end{frame}
 
 % 25
-\begin{frame}[fragile]{лица?}
+\begin{frame}[fragile]{Frey Faces}
   TODO
   %картинки
 \end{frame}

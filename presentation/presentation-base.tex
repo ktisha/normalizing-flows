@@ -60,3 +60,13 @@
 \DeclareMathOperator*{\argmax}{arg\,max}
 
 \newcommand{\op}[1]{\operatorname{#1}}
+
+\usepackage{xparse}
+\NewDocumentCommand\E{m+g}{%
+  \IfNoValueTF{#2}
+    {\mathbb{E}\left[ #1 \right]}
+    {\mathbb{E}_{#1}\left[ #2 \right]}%
+}
+
+\newcommand{\KL}[2]{\mathbb{D}_{KL}\left[ #1 \parallel #2 \right]}
+\newcommand{\grad}[0]{\nabla}
