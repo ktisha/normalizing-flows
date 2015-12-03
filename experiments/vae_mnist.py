@@ -109,9 +109,13 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params, learning_rate=2e-3)
+    updates = adam(-elbo_train, params, learning_rate=1e-3)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
+
+    X_output_var = get_output(net["x_mu"], X_var, determinisitic=True)
+    mse = theano.function(
+        [X_var], squared_error(X_var, X_output_var).mean())
 
     print("Starting training...")
     monitor = Monitor(p.num_epochs)
@@ -127,6 +131,7 @@ def fit_model(**kwargs):
             for Xb in iter_minibatches(X_val, p.batch_size):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
+            print(mse(X_val))
 
         snapshot = get_all_param_values(net["dec_output"])
         monitor.report(snapshot, sw, train_err / train_batches,

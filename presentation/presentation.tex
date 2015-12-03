@@ -416,7 +416,34 @@
 \end{frame}
 
 
-\begin{frame}[fragile]{Representative power of normalizing flows}
+\begin{frame}{Representative power of normalizing flows}
+  \begin{itemize}
+  \item Choose a non-trivial density $p(z) \propto \exp[-U(z)]$.
+  \item Example:
+    $$
+    U_2(z) = \frac{1}{2} \left( \frac{z_2 - w_1(z)}{0.4} \right)
+    \qquad
+    w_1(z) = \sin \frac{2 \pi z_1}{4}
+    $$
+  \item Approximate the density with a flow by optimizing
+    \begin{align*}
+      \KL{q(z_K)}{p(z)}
+      &= \int q(z_K) \log \frac{q(z_K)}{p(z)} dz_K \\
+      &= \E{q(z_K)}{\log q(z_K) - (-U(z) + \op{const}(z_K))} \\
+      &\approx \frac{1}{S} \sum\limits_{s = 1}^S \left( \log q(z_K) + U(z) \right) + \op{const}(z_K)
+    \end{align*}
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]{Representative power of \hl{planar} flows}
+  \begin{center}
+    \includegraphics[width=.8\textwidth]{images/normalizing_flow}
+  \end{center}
+\end{frame}
+
+
+\begin{frame}[fragile]{Representative power of \hl{radial} flows}
   \begin{center}
     \includegraphics[width=.8\textwidth]{images/normalizing_flow}
   \end{center}
@@ -491,9 +518,14 @@
 
 
 % 26
-\begin{frame}[fragile]{Conclusions and future directions}
+\begin{frame}[fragile]{Future directions}
   \begin{itemize}
-  \item
+  \item Investigate the effect of latent variable prior $p(z)$ and approximate
+    posterior $q(z_K|x, \phi)$ on model performance.
+  \item Try more complex prior distributions for the case when domain-specific
+    knowledge is available, e.g. the data is multimodal.
+  \item Apply normalizing flows to the problem of semi-supervised learning
+    with generative models.
   \end{itemize}
 \end{frame}
 

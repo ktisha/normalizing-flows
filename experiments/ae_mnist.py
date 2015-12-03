@@ -68,7 +68,7 @@ def fit_model(**kwargs):
     X_output_var = get_output(net["dec_output"], X_var)
     params = get_all_params(net["dec_output"], trainable=True)
     mse = squared_error(X_var, X_output_var).mean()
-    updates = adam(mse_var, params, learning_rate=2e-3)
+    updates = adam(mse, params, learning_rate=2e-3)
     mse_train = theano.function([X_var], mse, updates=updates)
     mse_val = theano.function([X_var], mse)
 
@@ -97,7 +97,7 @@ def fit_model(**kwargs):
         pickle.dump(monitor.best, handle)
 
     print("MSE for the best performing model: {:.6f}"
-          .format(float(mse(X_val))))
+          .format(float(mse_val(X_val))))
 
 
 if __name__ == "__main__":

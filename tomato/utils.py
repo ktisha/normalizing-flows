@@ -110,7 +110,7 @@ class Stopwatch:
 
 
 class Monitor:
-    def __init__(self, num_epochs, tolerance=5):
+    def __init__(self, num_epochs, tolerance=25):
         self.epoch = 0
         self.num_epochs = num_epochs
         self.tolerance = tolerance
@@ -126,7 +126,7 @@ class Monitor:
             return True
 
         mean_val_err = np.mean(self.val_errs[-self.tolerance:])
-        eps = 1 + np.sign(mean_val_err) * 0.05
+        eps = 1 + np.sign(mean_val_err) * 0.25
         good_to_go = self.val_errs[-1] < mean_val_err * eps
         if not good_to_go:
             print("Stopped early: {} > {}"
@@ -136,6 +136,9 @@ class Monitor:
     @property
     def best(self):
         epoch = np.argmin(self.val_errs[-self.tolerance:])
+        print("Best achieved validation loss: {:.6f}"
+              .format(self.val_errs[epoch]))
+
         return self.snapshots[epoch]
 
     def report(self, snapshot, sw, train_err, val_err):

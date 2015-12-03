@@ -38,7 +38,7 @@ class Potential:
         Z = T.dmatrix("Z")
         f = theano.function([Z], T.exp(-self(Z)))
         estimate, _error = integrate.dblquad(
-            lambda z2, z1: f(np.array([[z1, z2]])),
+            lambda z2, z1: f(as_floatX(np.array([[z1, z2]]))),
             a, b, lambda z1: a, lambda z1: b)
         return np.log(estimate)
 

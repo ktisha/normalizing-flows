@@ -41,8 +41,8 @@ def main(num_flows, num_iter, batch_size, potential):
     print("Starting training...")
     train_loss = np.empty(num_iter)
     for i in range(num_iter):
-        z_0 = np.random.normal(size=(batch_size, num_features))
-        train_loss[i] = train_step(as_floatX(z_0))
+        z_0 = as_floatX(np.random.normal(size=(batch_size, num_features)))
+        train_loss[i] = train_step(z_0)
         if np.isnan(train_loss[i]):
             raise ValueError
         elif i and i % 1000 == 0:
@@ -53,7 +53,7 @@ def main(num_flows, num_iter, batch_size, potential):
 
     print("Sampling...")
     num_samples = 100000
-    z_0 = np.random.normal(size=(num_samples, num_features))
+    z_0 = as_floatX(np.random.normal(size=(num_samples, num_features)))
     z_k = flow(z_0)
 
     _fig, (ax1, ax2) = plt.subplots(2, sharex=True, sharey=True)
