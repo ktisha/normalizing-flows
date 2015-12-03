@@ -95,7 +95,8 @@ def fit_model(**kwargs):
     with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(monitor.best, handle)
 
-    print("MSE for the best performing model: {:.6f}".format(mse(X_val)))
+    print("MSE for the best performing model: {:.6f}"
+          .format(float(mse(X_val))))
 
 
 if __name__ == "__main__":

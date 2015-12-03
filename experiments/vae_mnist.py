@@ -138,11 +138,12 @@ def fit_model(**kwargs):
         pickle.dump(monitor.best, handle)
 
     # Calculate MSE as with plain AE.
-    X_output_var = get_output(net["x_mu"], determinisitic=True)
+    X_output_var = get_output(net["x_mu"], X_var, determinisitic=True)
     mse = theano.function(
         [X_var], squared_error(X_var, X_output_var).mean())
 
-    print("MSE for the best performing model: {:.6f}".format(mse(X_val)))
+    print("MSE for the best performing model: {:.6f}"
+          .format(float(mse(X_val))))
 
 
 if __name__ == "__main__":
