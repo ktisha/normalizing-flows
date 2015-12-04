@@ -79,6 +79,7 @@ def build_model(p):
 
 def elbo(X_var, net, p, **kwargs):
     x_mu_var = get_output(net["x_mu"], X_var, **kwargs)
+    z_0_var = get_output(net["z"], X_var, **kwargs)
     z_k_var = get_output(net["z_k"], X_var, **kwargs)
     z_mu_var = get_output(net["z_mu"], X_var, **kwargs)
     z_log_covar_var = get_output(net["z_log_covar"], X_var, **kwargs)
@@ -92,7 +93,7 @@ def elbo(X_var, net, p, **kwargs):
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     #      = E_q(z|x)[log p(x|z)] - KL[q(z_0|x)||p(z)] + sum(logdet)
-    return T.mean(logpxz + mvn_std_logpdf(z_k_var)
+    return T.mean(logpxz
                   - kl_mvn_log_mvn_std(z_mu_var, z_log_covar_var)
                   + logdet_sum_var)
 
