@@ -474,7 +474,7 @@
   \mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q(z|x, \phi)} \left[ \log p(x, z | \theta) - \log q(z | x, \phi) \right] \\
   &= \mathbb{E}_{q_K(z_K| \theta)} \left[ \log p(x, z_K | \theta) - \log q(z_K | \hl{\phi}) \right] \\
   &= \mathbb{E}_{q_0(z_0|x, \hl{\phi})} \bigg[ \log p(x, z_K| \theta) - \log q_0(z_0| x, \hl{\phi})  \\
-  &+ \sum_{k=1}^K \log \left\vert \det
+  &\hspace{6em} + \sum_{k=1}^K \log \left\vert \det
   \frac{\partial f_k}  {\partial z_k} \right\vert \bigg]
   \end{align*}
 \end{frame}
