@@ -67,7 +67,7 @@
       $z$ --- \hl{continuous} latent variables\\
       $\theta$ --- model parameters\\
       % $\phi~-$ variational parameters\\
-      $p(x, z|\theta) = p(x|z, \theta) p(z)$  %--- joint p.d.f.\\
+      $p(x, z|\theta) = p(x|z, \theta) p(z|\theta)$ %--- joint p.d.f.\\
     \end{minipage}
   \end{center}
 
@@ -139,7 +139,7 @@
     \mathcal{L}(\theta, \phi; x)
     &= \E{q(z|x, \phi)}{\log p(x, z|\theta) - \log q(z|x, \phi)} \\
     &= \E{q(z|x, \phi)}{\log p(x|z, \theta)}
-     - \KL{q(z|x, \phi)}{p(z)}
+     - \KL{q(z|x, \phi)}{p(z|\theta)}
   \end{align*}
 
   % \begin{itemize}
@@ -234,12 +234,12 @@
       &\triangleq \widetilde{\mathcal{L}}(\theta, \phi; x, z)
     \end{align*}
     where $z^{(s)} = g(\epsilon^{(s)}, x; \phi)$ and $\epsilon^{(s)} \sim p(\epsilon)$.
-  \item If $\KL{q(z|x, \phi)}{p(z)}$ is tractable
+  \item If $\KL{q(z|x, \phi)}{p(z|\theta)}$ is tractable
     \begin{align*}
       \mathcal{L}(\theta, \phi; x)
-      &= \E{q(z|x, \phi)}{\log p(x|z, \theta)} - \KL{q(z|x, \phi)}{p(z)} \\
+      &= \E{q(z|x, \phi)}{\log p(x|z, \theta)} - \KL{q(z|x, \phi)}{p(z|\theta)} \\
       &\approx \frac{1}{S} \sum\limits_{s = 1}^S \log p(x|z^{(s)}, \theta)
-       - \KL{q(z|x, \phi)}{p(z)} \\
+       - \KL{q(z|x, \phi)}{p(z|\theta)} \\
       &\triangleq \widetilde{\mathcal{L}}(\theta, \phi; x, z)
     \end{align*}
   \end{itemize}
@@ -286,7 +286,7 @@
     \end{minipage}
     \begin{minipage}[t]{.55\linewidth}
       \begin{align*}
-        p(z) &= \mathcal{N}(z|0, \mathbf{I}) \\
+        p(z|\theta) &= \mathcal{N}(z|0, \mathbf{I}) \\
         p(x|z, \theta) &= \mathcal{N}(x| \mu(z), \sigma^2(z) \mathbf{I}) \\
         q(z|x, \phi) &= \mathcal{N}(z| M(x), S^2(x) \mathbf{I}) \\
       \end{align*}
@@ -306,8 +306,8 @@
   \centering
   \begin{tikzpicture}
     \node[obs]                 (x1) {$x$};
-    \node[latent, below=of x1] (z)  {$z$};
-    \node[latent, left=of z]   (e)  {$\epsilon$};
+    \node[latent, below=of x1] (z) {$z$};
+    \node[latent, left=of z]   (e) {$\epsilon$};
     \node[obs, below=of z]     (x2) {$x$};
 
     \node[below=of e, yshift=2em, align=center] {injected\\noise};
@@ -321,7 +321,7 @@
   $$
   \mathcal{L}(\theta, \phi; x)
   = \underbrace{\E{q(z|x, \phi)}{\log p(x|z, \theta)}}_{\text{negative reconstruction error}}
-  - \underbrace{\KL{q(z|x, \phi)}{p(z)}}_{\text{regularizer}}
+  - \underbrace{\KL{q(z|x, \phi)}{p(z|\theta)}}_{\text{regularizer}}
   $$
 \end{frame}
 
@@ -458,7 +458,7 @@
 
     \node[below=of e, yshift=2em, align=center] {injected\\noise};
     \path (zK) edge [->] node [midway, right, xshift=2em]
-        {$p(x|z, \theta)$ \hl{aka} decoder} (x1);
+        {$p(x|z_K, \theta)$ \hl{aka} decoder} (x1);
     \path (x2) edge [->, dashed] node [midway, right, xshift=2em]
         {$q(z_0|x, \phi)$ \hl{aka} encoder} (z0);
     \path (z0) edge [->] node [midway, right, xshift=2em]
