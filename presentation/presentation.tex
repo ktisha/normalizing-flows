@@ -174,8 +174,8 @@
      = \int f(z) \grad_\phi q(z|\phi) dz \\
     &= \int f(z) q(z|\phi) \grad_\phi \log q(z|\phi) dz
   \end{align*}
-  where the last line is due to the \hl{log derivative}
-  trick\footnote{%
+  where the last line is due to the \hl{log derivative trick}
+  \footnote{%
     \url{http://blog.shakirm.com/2015/11/machine-learning-trick-of-the-day-5-log-derivative-trick}}
   $$
   \grad_\phi \log q(z|x, \phi) = \frac{\grad_\phi q(z|x, \phi)}{q(z|x, \phi)}
@@ -210,7 +210,7 @@
     $$
     \E{q(z|x, \phi)}{f(z)}
     = \E{p(\epsilon)}{f(g(\epsilon, x; \phi)}
-    \approx \frac{1}{S} \sum\limits_{s = 1}^S f(g(\epsilon^{(l)}, x; \phi))
+    \approx \frac{1}{S} \sum\limits_{s = 1}^S f(g(\epsilon^{(s)}, x; \phi))
     $$
   \item For example $q(z|\phi) = \mathcal{N}(z|\mu, \sigma^2)$ and
     $\phi = (\mu, \sigma^2)$ then
@@ -364,12 +364,12 @@
 
 
 \begin{frame}[fragile]{Normalizing flows}
-  We want to specify a complicated joint distribution over z.\\
+  We want to specify a \hl{complex} joint distribution over z.\\
   ~\\
   $z$ --- random variable with distribution $q(z)$\\  
   $f$ --- invertible parametric function\\
   ~\\
-  Transformation of random variables: $\tilde{z} = f(z)$, $f^{-1}(\tilde{z}) = z$\\
+  Transformation of random variables: $\tilde{z} = f(z)$, ~$f^{-1}(\tilde{z}) = z$\\
   $$
   q(\tilde{z})
   = q(f^{-1}(\tilde{z})) \left\vert \det \frac{\partial f^{-1}(\tilde{z})}{\partial \tilde{z}} \right\vert
