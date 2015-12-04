@@ -436,14 +436,7 @@
 \end{frame}
 
 
-\begin{frame}[fragile]{Representative power of \hl{planar} flows}
-  \begin{center}
-    \includegraphics[width=.8\textwidth]{images/normalizing_flow}
-  \end{center}
-\end{frame}
-
-
-\begin{frame}[fragile]{Representative power of \hl{radial} flows}
+\begin{frame}[fragile]{Representative power of normalizing flows}
   \begin{center}
     \includegraphics[width=.8\textwidth]{images/normalizing_flow}
   \end{center}
@@ -475,8 +468,8 @@
 \begin{frame}[fragile]{ELBO with planar normalizing flow}
   \begin{align*}
   \mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q(z|x, \phi)} \left[ \log p(x, z | \theta) - \log q(z | x, \phi) \right] \\
-  &= \mathbb{E}_{q_K(z_K)} \left[ \log p(x, z_K) - \log q(z_K) \right] \\
-  &= \mathbb{E}_{q_0(z_0)} \left[ \log p(x, z_K) - \log q_0(z_0) + \sum_{k=1}^K \log \left\vert \det
+  &= \mathbb{E}_{q_K(z_K| \theta)} \left[ \log p(x, z_K | \theta) - \log q(z_K | \hl{\phi}) \right] \\
+  &= \mathbb{E}_{q_0(z_0| \hl{\phi})} \left[ \log p(x, z_K| \theta) - \log q_0(z_0| \hl{\phi}) + \sum_{k=1}^K \log \left\vert \det
   \frac{\partial f_k}  {\partial z_k} \right\vert \right]
   \end{align*}
 \end{frame}
