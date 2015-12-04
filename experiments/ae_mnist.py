@@ -8,7 +8,7 @@ import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values
-from lasagne.nonlinearities import tanh
+from lasagne.nonlinearities import tanh, identity
 from lasagne.objectives import squared_error
 from lasagne.updates import adam
 
@@ -18,21 +18,22 @@ from tomato.utils import iter_minibatches, Stopwatch, Monitor
 
 class Params(namedtuple("Params", [
     "dataset", "batch_size", "num_epochs", "num_features",
-    "num_hidden", "continuous"
+    "num_latent", "num_hidden", "continuous"
 ])):
     __slots__ = ()
 
     def to_path(self):
         fmt = ("ae_{dataset}_B{batch_size}_E{num_epochs}_"
-               "N{num_features}_H{num_hidden}_{flag}")
+               "N{num_features}_L{num_latent}_H{num_hidden}_{flag}")
         return Path(fmt.format(flag="DC"[self.continuous], **self._asdict()))
 
     @classmethod
     def from_path(cls, path):
         [(dataset, *chunks, dc)] = re.findall(
-            r"ae_(\w+)_B(\d+)_E(\d+)_N(\d+)_H(\d+)_([DC])", str(path))
-        batch_size, num_epochs, num_features, num_hidden = map(int, chunks)
-        return cls(dataset, batch_size, num_epochs, num_features,
+            r"ae_(\w+)_B(\d+)_E(\d+)_N(\d+)_L(\d+)_H(\d+)_([DC])", str(path))
+        (batch_size, num_epochs,
+         num_features, num_latent, num_hidden) = map(int, chunks)
+        return cls(dataset, batch_size, num_epochs, num_features, num_latent,
                    num_hidden, continuous=dc == "C")
 
 
@@ -41,10 +42,14 @@ def build_model(p):
     net["enc_input"] = InputLayer((None, p.num_features))
     net["enc_hidden"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
-    net["dec_hidden"] = DenseLayer(net["enc_hidden"], num_units=p.num_hidden,
+
+    net["z"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
+                          nonlinearity=identity)
+
+    net["dec_hidden"] = DenseLayer(net["z"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
     net["dec_output"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
-                                   nonlinearity=tanh)
+                                   nonlinearity=identity)
     return net
 
 
@@ -68,7 +73,7 @@ def fit_model(**kwargs):
     X_output_var = get_output(net["dec_output"], X_var)
     params = get_all_params(net["dec_output"], trainable=True)
     mse = squared_error(X_var, X_output_var).mean()
-    updates = adam(mse, params, learning_rate=2e-3)
+    updates = adam(mse, params, learning_rate=5e-3)
     mse_train = theano.function([X_var], mse, updates=updates)
     mse_val = theano.function([X_var], mse)
 
@@ -83,9 +88,9 @@ def fit_model(**kwargs):
                 train_batches += 1
 
             val_err, val_batches = 0, 0
-            for Xb in iter_minibatches(X_val, p.batch_size):
-                val_err += mse_val(Xb)
-                val_batches += 1
+            # for Xb in iter_minibatches(X_val, p.batch_size):
+            #     val_err += mse_val(Xb)
+            #     val_batches += 1
 
         snapshot = get_all_param_values(net["dec_output"])
         monitor.report(snapshot, sw, train_err / train_batches,
@@ -107,6 +112,7 @@ if __name__ == "__main__":
 
     fit_parser = subparsers.add_parser("fit")
     fit_parser.add_argument("dataset", type=str)
+    fit_parser.add_argument("-L", dest="num_latent", type=int, default=100)
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
     fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)

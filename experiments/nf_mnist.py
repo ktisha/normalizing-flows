@@ -4,13 +4,12 @@ import re
 from pathlib import Path
 from collections import namedtuple
 
-import numpy as np
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, \
     get_output, get_all_params, get_all_param_values, \
-    set_all_param_values, concat, dropout
-from lasagne.nonlinearities import identity, rectify, sigmoid, leaky_rectify
+    set_all_param_values, concat
+from lasagne.nonlinearities import identity, sigmoid, leaky_rectify
 from lasagne.updates import adam
 
 from tomato.datasets import load_dataset
@@ -18,7 +17,7 @@ from tomato.layers import GaussianNoiseLayer
 from tomato.layers import planar_flow
 from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, mvn_std_logpdf, bernoulli_logpmf, \
-    iter_minibatches, Stopwatch, Monitor
+    kl_mvn_log_mvn_std, iter_minibatches, Stopwatch, Monitor
 
 
 class Params(namedtuple("Params", [
@@ -80,7 +79,6 @@ def build_model(p):
 
 def elbo(X_var, net, p, **kwargs):
     x_mu_var = get_output(net["x_mu"], X_var, **kwargs)
-    z_0_var = get_output(net["z"], X_var, **kwargs)
     z_k_var = get_output(net["z_k"], X_var, **kwargs)
     z_mu_var = get_output(net["z_mu"], X_var, **kwargs)
     z_log_covar_var = get_output(net["z_log_covar"], X_var, **kwargs)
@@ -93,9 +91,10 @@ def elbo(X_var, net, p, **kwargs):
         logpxz = bernoulli_logpmf(X_var, x_mu_var)
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
+    #      = E_q(z|x)[log p(x|z)] - KL[q(z_0|x)||p(z)] + sum(logdet)
     return T.mean(logpxz + mvn_std_logpdf(z_k_var)
-                  - (mvn_log_logpdf(z_0_var, z_mu_var, z_log_covar_var)
-                     - logdet_sum_var))
+                  - kl_mvn_log_mvn_std(z_mu_var, z_log_covar_var)
+                  + logdet_sum_var)
 
 
 def fit_model(**kwargs):
@@ -111,7 +110,7 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params, learning_rate=1e-5)
+    updates = adam(-elbo_train, params, learning_rate=1e-3)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 
@@ -136,7 +135,6 @@ def fit_model(**kwargs):
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
-    all_param_values = get_all_param_values(net["dec_output"])
     with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(monitor.best, handle)
 

@@ -8,8 +8,9 @@ from lasagne.layers import InputLayer, get_output, get_all_params
 from lasagne.updates import adam
 from lasagne.utils import floatX as as_floatX
 from matplotlib import pyplot as plt
+from scipy import stats
 
-from tomato.densities import Potential, plot_sample, plot_potential
+from tomato.densities import Potential
 from tomato.layers import planar_flow
 from tomato.utils import mvn_std_logpdf
 
@@ -33,10 +34,9 @@ def main(num_flows, num_iter, batch_size, potential):
     kl = (log_q + p(z_k_var)).mean()
 
     params = get_all_params(net["z_k"], trainable=True)
-    updates = adam(kl, params)
-
+    updates = adam(kl, params, learning_rate=1e-4)
     train_step = theano.function([z_0_var], kl, updates=updates)
-    flow = theano.function([z_0_var], z_k_var)
+    flow = theano.function([z_0_var], T.exp(log_q))
 
     print("Starting training...")
     train_loss = np.empty(num_iter)
@@ -51,15 +51,27 @@ def main(num_flows, num_iter, batch_size, potential):
     log_partition = p.integrate(-4, 4)
     print("Done. Expected KL {:.2f}".format(train_loss[-1] + log_partition))
 
+    # XXX either this is a bad way to viz. NF or optimization
+    #     doesn't work.
     print("Sampling...")
-    num_samples = 100000
-    z_0 = as_floatX(np.random.normal(size=(num_samples, num_features)))
-    z_k = flow(z_0)
+    num_steps = 500
+    grid = []
+    for i, j in np.ndindex(num_steps - 1, num_steps - 1):
+        grid.append([(i + 1) / float(num_steps),
+                     (j + 1) / float(num_steps)])
+
+    z_0 = as_floatX(stats.norm.ppf(grid))
 
     _fig, (ax1, ax2) = plt.subplots(2, sharex=True, sharey=True)
-    plot_potential(p.compile(), where=ax1)
-    plot_sample(z_k, num_flows, where=ax2)
+    plot_sample(z_0, p.compile(), where=ax1)
+    plot_sample(z_0, flow, where=ax2)
     plt.show()
+
+
+def plot_sample(Z, f, where):
+    where.scatter(Z[:, 0], -Z[:, 1], c=f(Z), s=5, edgecolor="")
+    where.set_xlim((-4, 4))
+    where.set_ylim((-4, 4))
 
 
 if __name__ == "__main__":

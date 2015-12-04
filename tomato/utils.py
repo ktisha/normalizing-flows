@@ -110,7 +110,7 @@ class Stopwatch:
 
 
 class Monitor:
-    def __init__(self, num_epochs, tolerance=25):
+    def __init__(self, num_epochs, tolerance=10):
         self.epoch = 0
         self.num_epochs = num_epochs
         self.tolerance = tolerance
@@ -126,7 +126,7 @@ class Monitor:
             return True
 
         mean_val_err = np.mean(self.val_errs[-self.tolerance:])
-        eps = 1 + np.sign(mean_val_err) * 0.25
+        eps = 1 + np.sign(mean_val_err) * 0.5
         good_to_go = self.val_errs[-1] < mean_val_err * eps
         if not good_to_go:
             print("Stopped early: {} > {}"
