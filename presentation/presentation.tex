@@ -18,10 +18,8 @@
   \& \\
   Normalizing Flows}
 \author{S. Lebedev, E. Tuzova}
-\institute{JetBrains}
+%\institute{JetBrains}
 \date{\today}
-
-%% Alternative title: variational auto-encoder + normalizing flows = ?
 
 \begin{document}
 
@@ -37,10 +35,7 @@
     \includegraphics[width=.8\textwidth]{images/motivation}
   \end{center}
 
-  \begin{itemize}
-  \item What are the underlying \hl{hidden} factors in these two datasets?
-  \item How do we find them from the data?
-  \end{itemize}
+  What are the underlying \hl{hidden} factors in these two datasets?
 \end{frame}
 
 % 2
@@ -111,15 +106,15 @@
 
 
 \begin{frame}{The plan}
-  \hl{tl;dr} reduce the problem to stochastic optimization.
-
   \begin{enumerate}
+  \item[] \hl{tl;dr} reduce inference problem to stochastic optimization.
+    \vspace{1em}
   \item Approximate the posterior with a neural net
     $q(z|x, \phi)$, where $\phi$ --- variational parameters.
   \item Lower bound the evidence using $q(z|x, \phi)$.
   \item Construct an estimator of the ELBO which can be
     optimized jointly w.r.t. $\phi$ and $\theta$.
-  \item Use stochastic gradient ascent.
+  \item Use stochastic gradient ascent to optimize the estimator.
   \item Profit.
   \end{enumerate}
 \end{frame}
@@ -206,17 +201,18 @@
     \qquad
     \epsilon \sim p(\epsilon)
     $$
-  \item Plug the transformed variable into the expectation
-    $$
-    \E{q(z|x, \phi)}{f(z)}
-    = \E{p(\epsilon)}{f(g(\epsilon, x; \phi)}
-    \approx \frac{1}{S} \sum\limits_{s = 1}^S f(g(\epsilon^{(s)}, x; \phi))
-    $$
-  \item For example $q(z|\phi) = \mathcal{N}(z|\mu, \sigma^2)$ and
+  % \item Plug the transformed variable into the expectation
+  %   $$
+  %   \E{q(z|x, \phi)}{f(z)}
+  %   = \E{p(\epsilon)}{f(g(\epsilon, x; \phi)}
+  %   \approx \frac{1}{S} \sum\limits_{s = 1}^S f(g(\epsilon^{(l)}, x; \phi))
+  %   $$
+  \item  Example: let $q(z|\phi) = \mathcal{N}(z|\mu, \sigma^2)$ and
     $\phi = (\mu, \sigma^2)$ then
     \begin{align*}
       \grad_\phi \E{q(z|\phi)}{f(z)}
-      = \E{\mathcal{N}(\epsilon|0, 1)}{\grad_\phi f(\mu + \sigma \epsilon)}
+      &= \E{\mathcal{N}(\epsilon|0, 1)}{\grad_\phi f(\mu + \sigma \epsilon)} \\
+      &\approx \frac{1}{S} \sum\limits_{s = 1}^S \grad_\phi f(\mu + \sigma \epsilon^{(s)})
     \end{align*}
     where $z = \mu + \sigma\epsilon$ and $\epsilon \sim \mathcal{N}(0, 1)$.
   \end{itemize}
@@ -253,8 +249,8 @@
     \State $\theta, \phi \gets$ initialize parameters
     \Repeat
        \State $x \gets$ random datapoint or minibatch
-       \State $\epsilon \gets$ random samples from $p(\epsilon)$
-       \State $z \gets g(\epsilon, x; \phi)$
+       \hl{\State $\epsilon \gets$ random samples from $p(\epsilon)$}
+       \hl{\State $z \gets g(\epsilon, x; \phi)$}
        \State $g_\theta, g_\phi \gets \grad_{\phi, \theta} %
            \mathcal{\widetilde{L}}(\theta, \phi; x, z)$
        \State $\theta \gets \theta + \alpha g_\theta$
@@ -294,10 +290,10 @@
   \end{center}
 
   \begin{itemize}
-  \item The parameters $\mu(z)$ and $\sigma^2(z)$ are computed by a neural net,
-    which assigns each value of $z$ a \hl{distribution} over $x$.
-  \item The parameters $M(x)$ and $S^2(x)$ are computed by a \hl{different}
-    neural net, mapping $x$ to a distribution over $z$.
+  \item The parameters $M(z)$ and $S^2(z)$ are computed by a neural net,
+    which assigns each value of $x$ a \hl{distribution} over $z$.
+  \item The parameters $\mu(x)$ and $\sigma^2(x)$ are computed by a
+    \hl{different} neural net, mapping $z$ to a distribution over $x$.
   \end{itemize}
 \end{frame}
 
@@ -327,7 +323,20 @@
 
 
 \begin{frame}{Experiments: MNIST}
-
+  \begin{figure}
+    \centering
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/vae_mnist_B200_E1000_N784_L2_H400_D_manifold_16}
+      \caption{Learned data manifold}
+    \end{subfigure}
+    \hspace{1em}
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/vae_mnist_B200_E1000_N784_L2_H400_D_sample_256}
+      \caption{Random samples}
+    \end{subfigure}
+  \end{figure}
 \end{frame}
 
 
@@ -346,14 +355,6 @@
       \caption{Random samples}
     \end{subfigure}
   \end{figure}
-
-  \centering
-  \begin{tabular}{cc}
-    \textbf{Model} & \textbf{MSE} \\
-    \hline
-    AE  & \\
-    VAE &
-  \end{tabular}
 \end{frame}
 
 
@@ -366,7 +367,7 @@
 \begin{frame}[fragile]{Normalizing flows}
   We want to specify a \hl{complex} joint distribution over z.\\
   ~\\
-  $z$ --- random variable with distribution $q(z)$\\  
+  $z$ --- random variable with distribution $q(z)$\\
   $f$ --- invertible parametric function\\
   ~\\
   Transformation of random variables: $\tilde{z} = f(z)$, ~$f^{-1}(\tilde{z}) = z$\\
@@ -380,7 +381,7 @@
 
 
 \begin{frame}[fragile]{Normalizing flows}
-  
+
   Chaining together a sequence: $z_K = f_K ( f_{K−1} ( \cdots f_2 ( f_1(z_0)))$\\
   $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert $$
 
@@ -390,7 +391,7 @@
 
 
 \begin{frame}[fragile]{Planar flow}
-  \textcolor{darkred}{Family of transformations:} ~$f(z) = z + uh\left( w^T z + b \right)$\\ 
+  \textcolor{darkred}{Family of transformations:} ~$f(z) = z + uh\left( w^T z + b \right)$\\
   $$ \left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z)
   \right\vert ~~~\text{where}~~~ \psi(z) = h'(w^Tz + b)w$$ \\
   $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert 1 + u^T \psi(z) \right\vert $$\\
@@ -502,18 +503,90 @@
 
 % 24
 \begin{frame}[fragile]{Experiments: MNIST}
-  TODO
-  % картинки
-  % график ELBO
+  \begin{figure}
+    \centering
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      %\includegraphics[width=.8\linewidth]{images/vae_frey_B100_E4000_N560_L2_H200_C_manifold_8}
+      \caption{Learned data manifold}
+    \end{subfigure}
+    \hspace{1em}
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      %\includegraphics[width=.8\linewidth]{images/vae_frey_B100_E4000_N560_L2_H200_C_sample_64}
+      \caption{Random samples}
+    \end{subfigure}
+  \end{figure}
 \end{frame}
 
 
 % 25
-\begin{frame}[fragile]{Experiments: Frey faces}
-  TODO
-  %картинки
+\begin{frame}[fragile]{Experiments: Frey faces ($K = 2$)}
+  \begin{figure}
+    \centering
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/nf_frey_B400_E8000_N560_L2_H200_F2_C_manifold_8}
+      \caption{Learned data manifold}
+    \end{subfigure}
+    \hspace{1em}
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/nf_frey_B400_E8000_N560_L2_H200_F2_C_sample_64}
+      \caption{Random samples}
+    \end{subfigure}
+  \end{figure}
 \end{frame}
 
+
+\begin{frame}[fragile]{Experiments: Frey faces ($K = 8$)}
+  \begin{figure}
+    \centering
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/nf_frey_B400_E8000_N560_L2_H200_F8_C_manifold_8}
+      \caption{Learned data manifold}
+    \end{subfigure}
+    \hspace{1em}
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/nf_frey_B400_E8000_N560_L2_H200_F8_C_sample_64}
+      \caption{Random samples}
+    \end{subfigure}
+  \end{figure}
+\end{frame}
+
+
+\begin{frame}[fragile]{Experiments: Frey faces ($K = 16$)}
+  \begin{figure}
+    \centering
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/nf_frey_B400_E8000_N560_L2_H200_F16_C_manifold_8}
+      \caption{Learned data manifold}
+    \end{subfigure}
+    \hspace{1em}
+    \begin{subfigure}[b]{.4\linewidth}
+      \centering
+      \includegraphics[width=.8\linewidth]{images/nf_frey_B400_E8000_N560_L2_H200_F16_C_sample_64}
+      \caption{Random samples}
+    \end{subfigure}
+  \end{figure}
+\end{frame}
+
+
+\begin{frame}[fragile]{Experiments: Frey faces}
+  \begin{center}
+    \begin{tabular}{cc}
+      \textbf{Model} & \textbf{ELBO}    \\
+      \hline
+      VAE           & -520.04 \\
+      NF ($K = 2$)  & -603.34 \\
+      NF ($K = 8$)  & -407.43 \\
+      NF ($K = 16$) & -412.68
+    \end{tabular}
+  \end{center}
+\end{frame}
 
 % 26
 \begin{frame}[fragile]{Future directions}
