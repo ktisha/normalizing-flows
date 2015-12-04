@@ -10,6 +10,7 @@
 \usepackage{mathtools}  %% for \underbrace
 
 \usepackage{subcaption}
+\captionsetup{compatibility=false}
 
 \input{presentation-base}
 
@@ -365,32 +366,32 @@
 \begin{frame}[fragile]{Normalizing flows}
   We want to specify a complicated joint distribution over z.\\
   ~\\
-  \textcolor{darkred}{Idea:} $f$ --- invertible parametric function\\
-  Introduce new $\tilde{z} = f(z)$
-
-\end{frame}
-
-
-\begin{frame}[fragile]{Normalizing flows}
+  $z$ --- random variable with distribution $q(z)$\\  
+  $f$ --- invertible parametric function\\
+  ~\\
   Transformation of random variables: $\tilde{z} = f(z)$, $f^{-1}(\tilde{z}) = z$\\
   $$
   q(\tilde{z})
   = q(f^{-1}(\tilde{z})) \left\vert \det \frac{\partial f^{-1}(\tilde{z})}{\partial \tilde{z}} \right\vert
   = q(z) \left\vert \det \frac{\partial f(z)}{\partial z} \right\vert^{-1}
   $$ \\
+
+\end{frame}
+
+
+\begin{frame}[fragile]{Normalizing flows}
+  
   Chaining together a sequence: $z_K = f_K ( f_{K−1} ( \cdots f_2 ( f_1(z_0)))$\\
   $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert \det \frac{\partial f_k}{\partial z_k} \right\vert $$
 
   Law of the unconscious statistician:\\
-  $$\mathbb{E}_{q_K} \left[g(z_K)\right] = \mathbb{E}_{q_0} \left[ g(f_K \circ f_{K−1} \circ \cdots \circ f_2
-  \circ f_1(z_0)) \right] $$
+  $$\mathbb{E}_{q_K} \left[g(z_K)\right] = \mathbb{E}_{q_0} \left[ g(f_K ( f_{K−1} ( \cdots f_2 ( f_1(z_0))) \right] $$
 \end{frame}
 
 
 \begin{frame}[fragile]{Planar flow}
-  \textcolor{darkred}{Family of transformations:} $f(z) = z + uh\left( w^T z + b \right)$\\
-  ~\\
-  $$\left\vert \det \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z)
+  \textcolor{darkred}{Family of transformations:} ~$f(z) = z + uh\left( w^T z + b \right)$\\ 
+  $$ \det \left\vert \frac{\partial f(z)}{\partial z} \right\vert = \left\vert 1 + u^T \psi(z)
   \right\vert ~~~\text{where}~~~ \psi(z) = h'(w^Tz + b)w$$ \\
   $$\log q_K(z_K) = \log q_0(z_0) − \sum_{k=1}^K \log \left\vert 1 + u^T \psi(z) \right\vert $$\\
   ~\\
@@ -402,9 +403,8 @@
 
 
 \begin{frame}[fragile]{Radial flow}
-  \textcolor{darkred}{Family of transformations:} \\
-  $f(z) = z + \beta h(\alpha, r)(z-z_0) ~~~\text{where}~~~ r = \vert z-z_0 \vert$,
-  $h(\alpha, r) = \frac{1}{\alpha + r}$\\
+  \textcolor{darkred}{Family of transformations:} ~$f(z) = z + \beta h(\alpha, r)(z-z_0)$\\
+  \hspace{12em}$r = \vert z-z_0 \vert$,~~~ $h(\alpha, r) = \frac{1}{\alpha + r}$\\
   ~\\
   $\det \left\vert \frac{\partial f}{\partial z} \right\vert = [1 + \beta h(\alpha, r)]^{(d-1)}
   [1 + \beta h(\alpha, r) + h'(\alpha, r) r]$\\
@@ -474,7 +474,7 @@
 % 21
 \begin{frame}[fragile]{ELBO with planar normalizing flow}
   \begin{align*}
-  \mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q_\phi(z|x)} \left[ \log p_\theta(x, z) - \log q_\phi(z | x) \right] \\
+  \mathcal{L}(\theta, \phi, x) &= \mathbb{E}_{q(z|x, \phi)} \left[ \log p(x, z | \theta) - \log q(z | x, \phi) \right] \\
   &= \mathbb{E}_{q_K(z_K)} \left[ \log p(x, z_K) - \log q(z_K) \right] \\
   &= \mathbb{E}_{q_0(z_0)} \left[ \log p(x, z_K) - \log q_0(z_0) + \sum_{k=1}^K \log \left\vert \det
   \frac{\partial f_k}  {\partial z_k} \right\vert \right]
@@ -491,7 +491,7 @@
        \State $x \gets$ random datapoint or minibatch
        \State $\epsilon \gets$ random samples from $p(\epsilon)$
        \hl{\State $z_0 \gets g(\epsilon, x; \phi)$}
-       \hl{\State $z_K \gets f_K(f_{K-1}(\cdots(f_1(z_0))))$}
+       \hl{\State $z_K \gets f_K(f_{K-1}(\cdots f_1(z_0)))$}
        \State $g_\theta, g_\phi \gets \grad_{\phi, \theta} %
            \mathcal{\widetilde{L}}(\theta, \phi; x, z_K)$
        \State $\theta \gets \theta + \alpha g_\theta$
@@ -511,7 +511,7 @@
 
 
 % 25
-\begin{frame}[fragile]{Experiemnts: Frey faces}
+\begin{frame}[fragile]{Experiments: Frey faces}
   TODO
   %картинки
 \end{frame}
