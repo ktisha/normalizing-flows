@@ -1,6 +1,6 @@
 import numpy as np
 import theano.tensor as T
-from lasagne.init import Constant, Normal
+from lasagne.init import Normal
 from lasagne.layers import Layer, MergeLayer
 from lasagne.random import get_rng
 from theano.tensor.shared_randomstreams import RandomStreams
@@ -8,7 +8,7 @@ from theano.tensor.nnet import softplus
 
 
 class PlanarFlowLayer(Layer):
-    def __init__(self, incoming, W=Normal(), U=Constant(), b=Normal(),
+    def __init__(self, incoming, W=Normal(), U=Normal(), b=Normal(),
                  **kwargs):
         super().__init__(incoming, **kwargs)
 
@@ -25,12 +25,13 @@ class PlanarFlowLayer(Layer):
 
         wTu = self.W.dot(self.U)
         m_wTu = -1 + softplus(wTu)
-        U_hat = self.U + (m_wTu - wTu) * self.W / T.square(self.W.norm(L=2))
-        tanh = T.tanh(self.W.dot(Z.T) + self.b)[:, np.newaxis]
+        U_hat = self.U + (m_wTu - wTu) * (self.W / self.W.norm(L=2))
+        tanh = T.tanh(Z.dot(self.W) + self.b)[:, np.newaxis]
 
-        f_Z = Z + tanh.dot(U_hat[np.newaxis, :])
+        f_Z = Z + U_hat[np.newaxis, :] * tanh
 
-        psi = (1 - T.square(tanh)) * self.W  # tanh'(z) = 1 - [tanh(z)]^2.
+        # Using tanh'(z) = 1 - [tanh(z)]^2.
+        psi = (1 - T.square(tanh)).dot(self.W[np.newaxis, :])
         logdet = T.log(abs(1 + psi.dot(U_hat)))
         return f_Z, logdet
 

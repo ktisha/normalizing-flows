@@ -1,10 +1,6 @@
 import copy
 import time
 from collections import deque
-
-import matplotlib
-matplotlib.use("Agg")
-
 import matplotlib.pyplot as plt
 import numpy as np
 import theano.tensor as T
@@ -24,23 +20,7 @@ def logsumexp(X, axis=None):
 
 
 def mvn_logpdf(X, mean, covar):
-    """Computes log-pdf of the multivariate normal with diagonal covariance.
-
-    >>> import theano
-    >>> import theano.tensor as T
-    >>> X = T.matrix("X")
-    >>> mean = T.vector("mean")
-    >>> covar = T.vector("covar")
-    >>> f = theano.function([X, mean, covar], mvn_logpdf(X, mean, covar),
-    ...                     allow_input_downcast=True)
-
-    >>> from scipy.stats import multivariate_normal
-    >>> X = np.array([[-2, 0], [1, -4]])
-    >>> mean, covar = np.array([-1, 1]), np.array([.4, .2])
-    >>> np.allclose(multivariate_normal.logpdf(X, mean, np.diag(covar)),
-    ...             f(X, mean, covar))
-    True
-    """
+    """Computes log-pdf of the multivariate normal with diagonal covariance."""
     return -.5 * (T.log(2 * np.pi)
                   + T.log(covar)
                   + T.square((X - mean)) / covar).sum(axis=1)

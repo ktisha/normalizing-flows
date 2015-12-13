@@ -1,8 +1,6 @@
 import numpy as np
 import theano
 import theano.tensor as T
-from lasagne.utils import floatX as as_floatX
-from matplotlib import pyplot as plt
 from scipy import integrate
 
 from .utils import logaddexp
@@ -33,30 +31,10 @@ class Potential:
     def integrate(self, a, b):
         f = self.compile()
         estimate, _error = integrate.dblquad(
-            lambda z2, z1: f(as_floatX(np.array([[z1, z2]]))),
+            lambda z2, z1: f(np.array([[z1, z2]])),
             a, b, lambda z1: a, lambda z1: b)
         return np.log(estimate)
 
     def compile(self):
-        Z = T.matrix("Z")
+        Z = T.dmatrix("Z")  # float64 is required for integration.
         return theano.function([Z], T.exp(-self(Z)))
-
-
-def plot_sample(Z, k, where):
-    #                                          vvv
-    # the pictures in the paper seem to have the y-axis flipped.
-    H, xedges, yedges = np.histogram2d(Z[:, 0], -Z[:, 1], bins=100)
-    H = np.flipud(np.rot90(H))
-    Hmasked = np.ma.masked_where(H == 0, H)
-    where.pcolormesh(xedges, yedges, Hmasked)
-    where.set_xlim((-4, 4))
-    where.set_ylim((-4, 4))
-    where.set_title("K = {}".format(k))
-
-
-def plot_potential(compiled, where):
-    Z01 = np.linspace(-4, 4, num=1000)
-    Z = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
-    where.scatter(Z[:, 0], -Z[:, 1], c=compiled(Z), s=5, edgecolor="")
-    where.set_xlim((-4, 4))
-    where.set_ylim((-4, 4))
