@@ -11,15 +11,14 @@ def plot_manifold(path, load_model, load_params, num_steps):
     p = load_params(str(path))
     net = load_model(path)
     z_var = T.matrix()
-    decoder = theano.function(
-        [z_var],
-        get_output(net["x_mu"], {net["z"]: z_var}, deterministic=True))
+    x_mu_function = get_output(net["x_mu"], {net["z"]: z_var}, deterministic=True)
+    x_mu = theano.function([z_var], x_mu_function)
 
     images = []
     for i, j in np.ndindex(num_steps - 1, num_steps - 1):
         z_ij = as_floatX([[stats.norm.ppf((i + 1) / num_steps),
                            stats.norm.ppf((j + 1) / num_steps)]])
-        images.append(decoder(z_ij).reshape(28, -1))
+        images.append(x_mu(z_ij).reshape(28, -1))
 
     _plot_grid(
         path.with_name("{}_manifold_{}.png".format(path.stem, num_steps)),
@@ -30,24 +29,22 @@ def plot_sample(path, load_model, load_params, num_samples):
     p = load_params(str(path))
     net = load_model(path)
     z_var = T.matrix()
-    z_mu = theano.function(
-        [z_var], get_output(net["x_mu"], {net["z"]: z_var},
-                            deterministic=True))
+    z_mu_function = get_output(net["x_mu"], {net["z"]: z_var}, deterministic=True)
+    x_mu = theano.function([z_var], z_mu_function)
 
     Z = as_floatX(np.random.normal(size=(num_samples, p.num_latent)))
 
     images = []
     if p.continuous:
-        z_covar = theano.function(
-            [z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var},
-                                      deterministic=True)))
+        x_log_covar_function = get_output(net["x_log_covar"], {net["z"]: z_var}, deterministic=True)
+        x_covar = theano.function([z_var], T.exp(x_log_covar_function))
         for z_i in Z:
-            mu = z_mu(np.array([z_i]))
-            covar = z_covar(np.array([z_i]))
+            mu = x_mu(np.array([z_i]))
+            covar = x_covar(np.array([z_i]))
             images.append(np.random.normal(mu, covar).reshape(28, -1))
     else:
         for z_i in Z:
-            mu = z_mu(np.array([z_i]))
+            mu = x_mu(np.array([z_i]))
             images.append(np.random.binomial(1, mu).reshape(28, -1))
 
     _plot_grid(

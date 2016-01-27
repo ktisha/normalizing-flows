@@ -74,3 +74,47 @@ class IndexLayer(Layer):
 
     def get_output_for(self, input, **kwargs):
         return input[self.index]
+
+
+def softmax(weights):
+    weights_exp = T.exp(weights)
+    return weights_exp / T.sum(weights_exp)
+
+
+class GMMNoiseLayer(MergeLayer):
+    def __init__(self, comps, n_components, **kwargs):
+        super().__init__(comps, **kwargs)
+        self.n_components = n_components
+
+        self._srng = RandomStreams(get_rng().randint(1, 2147462579))
+
+    def get_output_shape_for(self, input_shapes):
+        return input_shapes[0]
+
+    def get_output_for(self, input, deterministic=False, **kwargs):
+        mus = T.stacklists(input[:int(self.n_components)])   # (n_components, input_size, latent)
+        covars = T.stacklists(input[int(self.n_components):int(2*self.n_components)])
+        weights = T.stacklists(input[int(2*self.n_components):])
+
+        weights = T.reshape(weights, covars.shape, 2)
+        weights = softmax(weights)
+        weights = weights.dimshuffle(0, 1, 'x')
+
+        mu = (mus * weights).sum(axis=0)
+        log_covar = (covars * weights).sum(axis=0)
+
+        if deterministic:
+            return mu, mu, log_covar
+        else:
+            eps = self._srng.normal(mu.shape)
+            return mu + T.exp(log_covar) * eps, mu, log_covar
+
+
+def gmm(comps, num):
+    noise_layer = GMMNoiseLayer(comps, num)
+    Z = IndexLayer(noise_layer, 0)
+    mu = IndexLayer(noise_layer, 1)
+    log_covar = IndexLayer(noise_layer, 2)
+
+    return Z, mu, log_covar
+
