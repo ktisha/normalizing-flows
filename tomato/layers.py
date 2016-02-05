@@ -6,6 +6,8 @@ from lasagne.random import get_rng
 from theano.tensor.shared_randomstreams import RandomStreams
 from theano.tensor.nnet import softplus
 
+from tomato.utils import normalize
+
 
 class PlanarFlowLayer(Layer):
     def __init__(self, incoming, W=Normal(), U=Normal(), b=Normal(),
@@ -76,11 +78,6 @@ class IndexLayer(Layer):
         return input[self.index]
 
 
-def softmax(weights):
-    weights_exp = T.exp(weights)
-    return weights_exp / T.sum(weights_exp)
-
-
 class GMMNoiseLayer(MergeLayer):
     def __init__(self, comps, n_components, **kwargs):
         super().__init__(comps, **kwargs)
@@ -92,29 +89,22 @@ class GMMNoiseLayer(MergeLayer):
         return input_shapes[0]
 
     def get_output_for(self, input, deterministic=False, **kwargs):
-        mus = T.stacklists(input[:int(self.n_components)])   # (n_components, input_size, latent)
-        covars = T.stacklists(input[int(self.n_components):int(2*self.n_components)])
-        weights = T.stacklists(input[int(2*self.n_components):])
+        mus = T.stacklists(input[:int(self.n_components)])   # (n_components, batch_size, latent)
+        log_covars = T.stacklists(input[int(self.n_components):int(2*self.n_components)])
+        weights = T.stacklists(input[int(2*self.n_components):])   #  (n_components, batch_size, 1)
 
-        weights = T.reshape(weights, covars.shape, 2)
-        weights = softmax(weights)
-        weights = weights.dimshuffle(0, 1, 'x')
+        weights = T.addbroadcast(weights, 2)
+        weights = weights.dimshuffle(0, 1)     # (n_components, batch_size)
+        weights = normalize(weights)
 
-        mu = (mus * weights).sum(axis=0)
-        log_covar = (covars * weights).sum(axis=0)
+        idx = T.argmax(self._srng.multinomial(pvals=weights.T, n=1000), axis=1)  # (batch_size, )
+
+        range_array = T.arange(idx.shape[0])
+        mu = mus[idx, range_array]
+        log_covar = log_covars[idx, range_array]
 
         if deterministic:
-            return mu, mu, log_covar
+            return mu
         else:
             eps = self._srng.normal(mu.shape)
-            return mu + T.exp(log_covar) * eps, mu, log_covar
-
-
-def gmm(comps, num):
-    noise_layer = GMMNoiseLayer(comps, num)
-    Z = IndexLayer(noise_layer, 0)
-    mu = IndexLayer(noise_layer, 1)
-    log_covar = IndexLayer(noise_layer, 2)
-
-    return Z, mu, log_covar
-
+            return mu + T.exp(log_covar) * eps

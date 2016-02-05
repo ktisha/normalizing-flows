@@ -32,6 +32,11 @@ def mvn_log_logpdf(X, mean, log_covar):
                   + T.square((X - mean)) / T.exp(log_covar)).sum(axis=1)
 
 
+def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
+    result = -.5 * (T.log(2 * np.pi) + log_covar + T.square(X - mean) / T.exp(log_covar))
+    return (result * weights).sum(axis=2).sum(axis=1)
+
+
 def mvn_std_logpdf(X):
     return -.5 * (T.log(2 * np.pi) + T.square(X)).sum(axis=1)
 
@@ -71,6 +76,14 @@ def iter_minibatches(X, batch_size):
         yield X[batch]
 
 
+def normalize(weights):
+    # weights_min = T.min(weights, axis=0)
+    # weights = (weights - weights_min) / (T.max(weights, axis=0) - weights_min)
+    # return weights
+    weights_exp = T.exp(weights)
+    return weights_exp / T.sum(weights_exp, axis=0)
+
+
 class Stopwatch:
     def __init__(self):
         self.result = None
@@ -90,10 +103,11 @@ class Stopwatch:
 
 
 class Monitor:
-    def __init__(self, num_epochs, tolerance=10):
+    def __init__(self, num_epochs, tolerance=10, stop_early=True):
         self.epoch = 0
         self.num_epochs = num_epochs
         self.tolerance = tolerance
+        self.stop_early = stop_early
         self.snapshots = deque(maxlen=tolerance)
         self.train_errs = []
         self.val_errs = []
@@ -103,6 +117,9 @@ class Monitor:
             return False
 
         if self.epoch < self.tolerance:
+            return True
+
+        if not self.stop_early:
             return True
 
         mean_val_err = np.mean(self.val_errs[-self.tolerance:])
