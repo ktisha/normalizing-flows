@@ -34,7 +34,7 @@ def mvn_log_logpdf(X, mean, log_covar):
 
 def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
     result = -.5 * (T.log(2 * np.pi) + log_covar + T.square(X - mean) / T.exp(log_covar))
-    return (result * weights).sum(axis=2).sum(axis=1)
+    return (result * weights).sum(axis=0).sum(axis=1)
 
 
 def mvn_std_logpdf(X):
@@ -79,9 +79,10 @@ def iter_minibatches(X, batch_size):
 def normalize(weights):
     # weights_min = T.min(weights, axis=0)
     # weights = (weights - weights_min) / (T.max(weights, axis=0) - weights_min)
-    # return weights
-    weights_exp = T.exp(weights)
-    return weights_exp / T.sum(weights_exp, axis=0)
+
+    weights_max = T.max(weights, axis=0)
+    weights = T.exp(weights - weights_max) / T.sum(T.exp(weights), axis=0)
+    return weights
 
 
 class Stopwatch:

@@ -91,13 +91,13 @@ class GMMNoiseLayer(MergeLayer):
     def get_output_for(self, input, deterministic=False, **kwargs):
         mus = T.stacklists(input[:int(self.n_components)])   # (n_components, batch_size, latent)
         log_covars = T.stacklists(input[int(self.n_components):int(2*self.n_components)])
-        weights = T.stacklists(input[int(2*self.n_components):])   #  (n_components, batch_size, 1)
+        weights = T.stacklists(input[int(2*self.n_components):])   # (n_components, batch_size, 1)
 
         weights = T.addbroadcast(weights, 2)
         weights = weights.dimshuffle(0, 1)     # (n_components, batch_size)
         weights = normalize(weights)
 
-        idx = T.argmax(self._srng.multinomial(pvals=weights.T, n=1000), axis=1)  # (batch_size, )
+        idx = T.argmax(self._srng.multinomial(pvals=weights.T, n=1), axis=1)  # (batch_size, )
 
         range_array = T.arange(idx.shape[0])
         mu = mus[idx, range_array]
