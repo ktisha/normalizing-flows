@@ -16,7 +16,7 @@ def logaddexp(X, Y):
 def logsumexp(X, axis=None):
     X_max = T.max(X, axis=axis)
     acc = T.log(T.sum(T.exp(X - X_max), axis=axis))
-    return X_max + T.log(acc)
+    return X_max + acc
 
 
 def mvn_logpdf(X, mean, covar):
@@ -33,8 +33,9 @@ def mvn_log_logpdf(X, mean, log_covar):
 
 
 def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
-    result = -.5 * (T.log(2 * np.pi) + log_covar + T.square(X - mean) / T.exp(log_covar))
-    return (result * weights).sum(axis=0).sum(axis=1)
+    inner = -.5 * (T.log(2 * np.pi) + log_covar + T.square(X - mean) / T.exp(log_covar))
+    inner = inner + T.log(weights)
+    return logsumexp(inner)
 
 
 def mvn_std_logpdf(X):
@@ -80,8 +81,8 @@ def normalize(weights):
     # weights_min = T.min(weights, axis=0)
     # weights = (weights - weights_min) / (T.max(weights, axis=0) - weights_min)
 
-    weights_max = T.max(weights, axis=0)
-    weights = T.exp(weights - weights_max) / T.sum(T.exp(weights), axis=0)
+    # weights_max = T.max(weights, axis=0)
+    weights = T.exp(weights) / T.sum(T.exp(weights), axis=0)
     return weights
 
 

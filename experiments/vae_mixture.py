@@ -16,10 +16,11 @@ from tomato.datasets import load_dataset
 from tomato.layers import GMMNoiseLayer
 from tomato.plot_utils import plot_manifold
 from tomato.plot_utils import plot_sample
-from tomato.utils import mvn_log_logpdf,  \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, normalize, logsumexp, mvn_log_logpdf_weighted
+from tomato.utils import mvn_log_logpdf, \
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, normalize, bernoulli_logpmf, mvn_log_logpdf_weighted
 
 theano.config.floatX = 'float64'
+
 
 class Params(namedtuple("Params", [
     "dataset", "batch_size", "num_epochs", "num_features",
@@ -42,7 +43,6 @@ class Params(namedtuple("Params", [
                    num_hidden, num_components, continuous=dc == "C")
 
 
-
 def build_model(p):
     net = {}
     # q(z|x)
@@ -53,11 +53,11 @@ def build_model(p):
     comps = []
     for i in range(p.num_components):
         net["z_mu" + str(i)] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
-                                 nonlinearity=identity)
+                                          nonlinearity=identity)
         net["z_log_covar" + str(i)] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
-                                        nonlinearity=identity)
-        net["z_weight" + str(i)] = DenseLayer(net["enc_hidden"], num_units=1,
                                                  nonlinearity=identity)
+        net["z_weight" + str(i)] = DenseLayer(net["enc_hidden"], num_units=1,
+                                              nonlinearity=identity)
 
     comps.extend([net["z_mu" + str(i)] for i in range(p.num_components)])
     comps.extend([net["z_log_covar" + str(i)] for i in range(p.num_components)])
@@ -70,7 +70,7 @@ def build_model(p):
                                    nonlinearity=tanh)
 
     net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
-                             nonlinearity=identity)
+                             nonlinearity=sigmoid)
     if p.continuous:
         net["x_log_covar"] = DenseLayer(net["dec_hidden"],
                                         num_units=p.num_features,
@@ -84,17 +84,21 @@ def build_model(p):
 
 def elbo(X_var, net, p, **kwargs):
     x_mu_var = get_output(net["x_mu"], X_var, **kwargs)  # (input, features)
-    x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)  # (input, features)
-    logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+    if p.continuous:
+        x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)  # (input, features)
+        logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+    else:
+        logpxz = bernoulli_logpmf(X_var, x_mu_var)
 
     z_var = get_output(net["z"], X_var, **kwargs)  # (input, latent)
     logpz = mvn_std_logpdf(z_var)
 
-    z_mu_vars = get_output([net["z_mu" + str(i)] for i in range(p.num_components)], X_var, **kwargs)
-    z_log_covar_vars = get_output([net["z_log_covar" + str(i)] for i in range(p.num_components)], X_var, **kwargs)
-    z_weight_vars = get_output([net["z_weight" + str(i)] for i in range(p.num_components)], X_var, **kwargs)
+    z_mu_vars = T.stacklists(get_output([net["z_mu" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
+    z_log_covar_vars = T.stacklists(
+        get_output([net["z_log_covar" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
+    z_weight_vars = T.stacklists(
+        get_output([net["z_weight" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
 
-    z_weight_vars = T.stacklists(z_weight_vars)
     z_weight_vars = theano.gradient.zero_grad(z_weight_vars)
     z_weight_vars = T.addbroadcast(z_weight_vars, 2)
     z_weight_vars = normalize(z_weight_vars)
@@ -118,7 +122,6 @@ def load_model(path):
 
 
 def fit_model(X_train, X_val, p):
-
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
     net = build_model(p)
@@ -165,23 +168,24 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from lasagne.utils import floatX as as_floatX
 
-    dataset = "gauss"
+    dataset = "mnist"
     np.random.seed(123)
 
     if dataset == "gauss":
         N = 100000
 
-        X = np.concatenate([np.random.multivariate_normal(np.array([100, 100]), np.random.random_sample((2, 2)), [N/2]),
-                            # np.random.multivariate_normal(np.array([1000,1000]), np.random.random_sample((2, 2)), [N/2]),
-                            np.random.multivariate_normal(np.array([-100,-100]), np.random.random_sample((2, 2)), [N/2])])
+        X = np.concatenate(
+            [np.random.multivariate_normal(np.array([100, 100]), np.random.random_sample((2, 2)), [N / 2]),
+             # np.random.multivariate_normal(np.array([1000, 1000]), np.random.random_sample((2, 2)), [N/2]),
+             np.random.multivariate_normal(np.array([-100, -100]), np.random.random_sample((2, 2)), [N / 2])])
 
         np.random.shuffle(X)
-        X_train = X[:2*N/3, :]
-        X_val = X[2*N/3:, :]
+        X_train = X[:2 * N / 3, :]
+        X_val = X[2 * N / 3:, :]
 
         num_features = X_train.shape[1]
-        p = Params(num_features=num_features, dataset=dataset, batch_size=50, num_epochs=100,
-                   num_latent=10, num_hidden=500, continuous=True, num_components=2)
+        p = Params(num_features=num_features, dataset=dataset, batch_size=50, num_epochs=50,
+                   num_latent=10, num_hidden=50, continuous=True, num_components=2)
 
         path = Path(str(p.to_path()) + ".pickle")
         net = fit_model(X_train, X_val, p)
@@ -196,9 +200,9 @@ if __name__ == "__main__":
         x_mu = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var},
                                                    deterministic=False))
 
-        Z0 = np.concatenate([np.random.normal(loc=40, size=(num_samples/2, p.num_latent)),
+        Z0 = np.concatenate([np.random.normal(loc=40, size=(num_samples / 2, p.num_latent)),
                              # np.random.normal(loc=300, size=(num_samples/2, p.num_latent)),
-                             np.random.normal(loc=-100, size=(num_samples/2, p.num_latent))])
+                             np.random.normal(loc=-100, size=(num_samples / 2, p.num_latent))])
         Z = as_floatX(Z0)
 
         # Z = as_floatX(np.random.normal(size=(num_samples, p.num_latent)))
@@ -223,10 +227,10 @@ if __name__ == "__main__":
         X_train, X_val = load_dataset(dataset, True)
         num_features = X_train.shape[1]
         p = Params(num_features=num_features, dataset=dataset, batch_size=500, num_epochs=100,
-                   num_latent=100, num_hidden=500, continuous=True, num_components=10)
+                   num_latent=100, num_hidden=500, continuous=False, num_components=10)
         path = Path(str(p.to_path()) + ".pickle")
 
         net = fit_model(X_train, X_val, p)
         # net = load_model(path)
         plot_sample(path, load_model, p.from_path, 10)
-        plot_manifold(path, load_model, p.from_path, 10)
+        # plot_manifold(path, load_model, p.from_path, 10)
