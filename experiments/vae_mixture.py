@@ -101,15 +101,16 @@ def elbo(X_var, net, p, **kwargs):
 
     z_weight_vars = theano.gradient.zero_grad(z_weight_vars)
     z_weight_vars = T.addbroadcast(z_weight_vars, 2)
+    z_weight_vars = z_weight_vars.dimshuffle(0,1)
     z_weight_vars = normalize(z_weight_vars)
 
     logqzx = mvn_log_logpdf_weighted(z_var, z_mu_vars, z_log_covar_vars, z_weight_vars)
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return T.mean(
-        logpxz.sum()
-        + logpz.sum()
-        - logqzx.sum()
+        logpxz
+        + logpz
+        - logqzx
     )
 
 
@@ -227,7 +228,7 @@ if __name__ == "__main__":
         X_train, X_val = load_dataset(dataset, True)
         num_features = X_train.shape[1]
         p = Params(num_features=num_features, dataset=dataset, batch_size=500, num_epochs=100,
-                   num_latent=100, num_hidden=500, continuous=False, num_components=10)
+                   num_latent=1, num_hidden=500, continuous=False, num_components=10)
         path = Path(str(p.to_path()) + ".pickle")
 
         net = fit_model(X_train, X_val, p)
