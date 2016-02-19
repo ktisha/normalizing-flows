@@ -1,3 +1,4 @@
+import argparse
 import pickle
 import re
 from collections import namedtuple
@@ -29,7 +30,7 @@ class Params(namedtuple("Params", [
     __slots__ = ()
 
     def to_path(self):
-        fmt = ("vae_{dataset}_B{batch_size}_E{num_epochs}_"
+        fmt = ("vae_mixture_{dataset}_B{batch_size}_E{num_epochs}_"
                "N{num_features}_L{num_latent}_H{num_hidden}_N{num_components}_{flag}")
         return Path(fmt.format(flag="DC"[self.continuous], **self._asdict()))
 
@@ -122,7 +123,12 @@ def load_model(path):
     return net
 
 
-def fit_model(X_train, X_val, p):
+def fit_model(**kwargs):
+    print("Loading data...")
+    X_train, X_val = load_dataset(kwargs["dataset"], kwargs["continuous"])
+    num_features = X_train.shape[1]  # XXX abstraction leak.
+    p = Params(num_features=num_features, **kwargs)
+
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
     net = build_model(p)
@@ -161,77 +167,35 @@ def fit_model(X_train, X_val, p):
     with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(monitor.best, handle)
 
-    return net
-
 
 if __name__ == "__main__":
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from lasagne.utils import floatX as as_floatX
+    parser = argparse.ArgumentParser(description="Learn VAE from data")
+    subparsers = parser.add_subparsers(dest="command")
+    subparsers.required = True
 
-    dataset = "mnist"
-    np.random.seed(123)
+    fit_parser = subparsers.add_parser("fit")
+    fit_parser.add_argument("dataset", type=str)
+    fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
+    fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=300)
+    fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
+    fit_parser.add_argument("-N", dest="num_components", type=int, default=10)
+    fit_parser.add_argument("-c", dest="continuous", action="store_true",
+                            default=False)
+    fit_parser.set_defaults(command=fit_model)
 
-    if dataset == "gauss":
-        N = 100000
+    manifold_parser = subparsers.add_parser("manifold")
+    manifold_parser.add_argument("path", type=Path)
+    manifold_parser.add_argument("-N", dest="num_steps", type=int, default=32)
+    manifold_parser.set_defaults(command=plot_manifold, load_model=load_model,
+                                 load_params=Params.from_path)
 
-        X = np.concatenate(
-            [np.random.multivariate_normal(np.array([100, 100]), np.random.random_sample((2, 2)), [N / 2]),
-             # np.random.multivariate_normal(np.array([1000, 1000]), np.random.random_sample((2, 2)), [N/2]),
-             np.random.multivariate_normal(np.array([-100, -100]), np.random.random_sample((2, 2)), [N / 2])])
+    sample_parser = subparsers.add_parser("sample")
+    sample_parser.add_argument("path", type=Path)
+    sample_parser.add_argument("-N", dest="num_samples", type=int, default=256)
+    sample_parser.set_defaults(command=plot_sample, load_model=load_model,
+                               load_params=Params.from_path)
 
-        np.random.shuffle(X)
-        X_train = X[:2 * N / 3, :]
-        X_val = X[2 * N / 3:, :]
-
-        num_features = X_train.shape[1]
-        p = Params(num_features=num_features, dataset=dataset, batch_size=50, num_epochs=50,
-                   num_latent=10, num_hidden=50, continuous=True, num_components=2)
-
-        path = Path(str(p.to_path()) + ".pickle")
-        net = fit_model(X_train, X_val, p)
-        # net = load_model(path)
-
-        f = plt.figure()
-        plt.scatter(X[:, 0], X[:, 1], lw=.3, s=3, cmap=plt.cm.cool)
-
-        #  plot samples
-        num_samples = 2000
-        z_var = T.matrix()
-        x_mu = theano.function([z_var], get_output(net["x_mu"], {net["z"]: z_var},
-                                                   deterministic=False))
-
-        Z0 = np.concatenate([np.random.normal(loc=40, size=(num_samples / 2, p.num_latent)),
-                             # np.random.normal(loc=300, size=(num_samples/2, p.num_latent)),
-                             np.random.normal(loc=-100, size=(num_samples / 2, p.num_latent))])
-        Z = as_floatX(Z0)
-
-        # Z = as_floatX(np.random.normal(size=(num_samples, p.num_latent)))
-        x_covar = theano.function([z_var], T.exp(get_output(net["x_log_covar"], {net["z"]: z_var},
-                                                            deterministic=False)))
-        X_decoded = []
-        for z_i in Z:
-            mu = x_mu(np.array([z_i]))
-            print(mu)
-            covar = x_covar(np.array([z_i]))
-
-            x_i = np.random.normal(mu, covar)
-            X_decoded.append(x_i)
-
-        X_decoded = np.array(X_decoded).reshape((len(X_decoded), 2))
-
-        plt.scatter(X_decoded[:, 0], X_decoded[:, 1], color="red", lw=.3, s=3, cmap=plt.cm.cool)
-        plt.show()
-        plt.savefig("x.png")
-
-    else:
-        X_train, X_val = load_dataset(dataset, True)
-        num_features = X_train.shape[1]
-        p = Params(num_features=num_features, dataset=dataset, batch_size=500, num_epochs=100,
-                   num_latent=1, num_hidden=500, continuous=False, num_components=10)
-        path = Path(str(p.to_path()) + ".pickle")
-
-        net = fit_model(X_train, X_val, p)
-        # net = load_model(path)
-        plot_sample(path, load_model, p.from_path, 10)
-        # plot_manifold(path, load_model, p.from_path, 10)
+    args = vars(parser.parse_args())
+    command = args.pop("command")
+    command(**args)
