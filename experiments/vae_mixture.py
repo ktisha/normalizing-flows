@@ -51,21 +51,21 @@ def build_model(p):
     net["enc_hidden"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
 
-    comps = []
+    net["z_mus"] = z_mus = []
+    net["z_log_covars"] = z_log_covars = []
     for i in range(p.num_components):
-        net["z_mu" + str(i)] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
-                                          nonlinearity=identity)
-        net["z_log_covar" + str(i)] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
-                                                 nonlinearity=identity)
+        z_mus.append(DenseLayer(net["enc_hidden"],
+                                num_units=p.num_latent,
+                                nonlinearity=identity))
+        z_log_covars.append(DenseLayer(net["enc_hidden"],
+                                       num_units=p.num_latent,
+                                       nonlinearity=identity))
 
     net["z_weights"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
-                                          nonlinearity=softmax)
+                                  nonlinearity=softmax)
 
-    comps.extend([net["z_mu" + str(i)] for i in range(p.num_components)])
-    comps.extend([net["z_log_covar" + str(i)] for i in range(p.num_components)])
-    comps.append(net["z_weights"])
-
-    net["z"] = GMMNoiseLayer(comps, p.num_components)
+    net["z"] = GMMNoiseLayer(z_mus, z_log_covars, net["z_weights"],
+                             p.num_components)
 
     # q(x|z)
     net["dec_hidden"] = DenseLayer(net["z"], num_units=p.num_hidden,
@@ -95,9 +95,9 @@ def elbo(X_var, net, p, **kwargs):
     z_var = get_output(net["z"], X_var, **kwargs)  # (input, latent)
     logpz = mvn_std_logpdf(z_var)
 
-    z_mu_vars = T.stacklists(get_output([net["z_mu" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
+    z_mu_vars = T.stacklists(get_output(net["z_mus"], X_var, **kwargs))
     z_log_covar_vars = T.stacklists(
-        get_output([net["z_log_covar" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
+        get_output(net["z_log_covars"], X_var, **kwargs))
     z_weight_vars = get_output(net["z_weights"], X_var, **kwargs).T
 
     z_weight_vars = theano.gradient.zero_grad(z_weight_vars)

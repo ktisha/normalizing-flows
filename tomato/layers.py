@@ -78,8 +78,8 @@ class IndexLayer(Layer):
 
 
 class GMMNoiseLayer(MergeLayer):
-    def __init__(self, comps, n_components, **kwargs):
-        super().__init__(comps, **kwargs)
+    def __init__(self, mu, log_covar, weights, n_components, **kwargs):
+        super().__init__(mu + log_covar + [weights], **kwargs)
         self.n_components = n_components
 
         self._srng = MRG_RandomStreams(get_rng().randint(1, 2147462579))
