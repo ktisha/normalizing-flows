@@ -58,12 +58,12 @@ def build_model(p):
         net["z_log_covar" + str(i)] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
                                                  nonlinearity=identity)
 
-    net["z_weight"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
+    net["z_weights"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
                                           nonlinearity=softmax)
 
     comps.extend([net["z_mu" + str(i)] for i in range(p.num_components)])
     comps.extend([net["z_log_covar" + str(i)] for i in range(p.num_components)])
-    comps.append(net["z_weight"])
+    comps.append(net["z_weights"])
 
     net["z"] = GMMNoiseLayer(comps, p.num_components)
 
@@ -98,7 +98,7 @@ def elbo(X_var, net, p, **kwargs):
     z_mu_vars = T.stacklists(get_output([net["z_mu" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
     z_log_covar_vars = T.stacklists(
         get_output([net["z_log_covar" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
-    z_weight_vars = get_output(net["z_weight"], X_var, **kwargs).T
+    z_weight_vars = get_output(net["z_weights"], X_var, **kwargs).T
 
     z_weight_vars = theano.gradient.zero_grad(z_weight_vars)
 
