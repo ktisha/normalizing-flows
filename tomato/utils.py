@@ -77,15 +77,6 @@ def iter_minibatches(X, batch_size):
         yield X[batch]
 
 
-def normalize(weights):
-    # weights_min = T.min(weights, axis=0)
-    # weights = (weights - weights_min) / (T.max(weights, axis=0) - weights_min)
-
-    # weights_max = T.max(weights, axis=0)
-    weights = T.exp(weights) / T.sum(T.exp(weights), axis=0)
-    return weights
-
-
 class Stopwatch:
     def __init__(self):
         self.result = None

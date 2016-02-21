@@ -3,10 +3,9 @@ import theano.tensor as T
 from lasagne.init import Normal
 from lasagne.layers import Layer, MergeLayer
 from lasagne.random import get_rng
+from theano.sandbox.rng_mrg import MRG_RandomStreams
 from theano.tensor.shared_randomstreams import RandomStreams
 from theano.tensor.nnet import softplus
-
-from tomato.utils import normalize
 
 
 class PlanarFlowLayer(Layer):
@@ -83,7 +82,7 @@ class GMMNoiseLayer(MergeLayer):
         super().__init__(comps, **kwargs)
         self.n_components = n_components
 
-        self._srng = RandomStreams(get_rng().randint(1, 2147462579))
+        self._srng = MRG_RandomStreams(get_rng().randint(1, 2147462579))
 
     def get_output_shape_for(self, input_shapes):
         return input_shapes[0]
@@ -91,13 +90,9 @@ class GMMNoiseLayer(MergeLayer):
     def get_output_for(self, input, deterministic=False, **kwargs):
         mus = T.stacklists(input[:int(self.n_components)])   # (n_components, batch_size, latent)
         log_covars = T.stacklists(input[int(self.n_components):int(2*self.n_components)])
-        weights = T.stacklists(input[int(2*self.n_components):])   # (n_components, batch_size, 1)
+        weights = input[int(2*self.n_components)]   # (n_components, batch_size)
 
-        weights = T.addbroadcast(weights, 2)
-        weights = weights.dimshuffle(0, 1)     # (n_components, batch_size)
-        weights = normalize(weights)
-
-        idx = T.argmax(self._srng.multinomial(pvals=weights.T, n=1), axis=1)  # (batch_size, )
+        idx = T.argmax(self._srng.multinomial(pvals=weights, n=1), axis=1)  # (batch_size, )
 
         range_array = T.arange(idx.shape[0])
         mu = mus[idx, range_array]

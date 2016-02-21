@@ -18,7 +18,7 @@ from tomato.layers import GMMNoiseLayer
 from tomato.plot_utils import plot_manifold
 from tomato.plot_utils import plot_sample
 from tomato.utils import mvn_log_logpdf, \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, normalize, bernoulli_logpmf, mvn_log_logpdf_weighted
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, bernoulli_logpmf, mvn_log_logpdf_weighted
 
 theano.config.floatX = 'float64'
 
@@ -57,12 +57,13 @@ def build_model(p):
                                           nonlinearity=identity)
         net["z_log_covar" + str(i)] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
                                                  nonlinearity=identity)
-        net["z_weight" + str(i)] = DenseLayer(net["enc_hidden"], num_units=1,
-                                              nonlinearity=identity)
+
+    net["z_weight"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
+                                          nonlinearity=softmax)
 
     comps.extend([net["z_mu" + str(i)] for i in range(p.num_components)])
     comps.extend([net["z_log_covar" + str(i)] for i in range(p.num_components)])
-    comps.extend([net["z_weight" + str(i)] for i in range(p.num_components)])
+    comps.append(net["z_weight"])
 
     net["z"] = GMMNoiseLayer(comps, p.num_components)
 
@@ -97,13 +98,9 @@ def elbo(X_var, net, p, **kwargs):
     z_mu_vars = T.stacklists(get_output([net["z_mu" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
     z_log_covar_vars = T.stacklists(
         get_output([net["z_log_covar" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
-    z_weight_vars = T.stacklists(
-        get_output([net["z_weight" + str(i)] for i in range(p.num_components)], X_var, **kwargs))
+    z_weight_vars = get_output(net["z_weight"], X_var, **kwargs).T
 
     z_weight_vars = theano.gradient.zero_grad(z_weight_vars)
-    z_weight_vars = T.addbroadcast(z_weight_vars, 2)
-    z_weight_vars = z_weight_vars.dimshuffle(0,1)
-    z_weight_vars = normalize(z_weight_vars)
 
     logqzx = mvn_log_logpdf_weighted(z_var, z_mu_vars, z_log_covar_vars, z_weight_vars)
 
