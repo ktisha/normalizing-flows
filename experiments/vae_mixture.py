@@ -210,3 +210,20 @@ if __name__ == "__main__":
     print(weights)
     print(Counter(np.argmax(weights, axis=1)))
 
+
+    x_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
+    x_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
+    x_mu = theano.function([X_var], x_mu_function)
+    x_covar = theano.function([X_var], x_log_function)
+
+    mus = x_mu(X_train)
+    covars = np.exp(x_covar(X_train))
+
+    for y in set(y_train):
+        mask = y_train == y
+        x1 = np.random.multivariate_normal(np.mean(mus[1][mask], axis=0), np.diag(np.mean(covars[1][mask], axis=0)), 1000)
+        x2 = np.random.multivariate_normal(np.mean(mus[0][mask], axis=0), np.diag(np.mean(covars[0][mask], axis=0)), 1000)
+        plt.scatter(x1[:, 0], x1[:, 1])
+        plt.scatter(x2[:, 0], x2[:, 1], c='r')
+        plt.show()
+        plt.clf()
