@@ -1,7 +1,7 @@
 import argparse
 import pickle
 import re
-from collections import namedtuple
+from collections import namedtuple, Counter
 from pathlib import Path
 
 import theano
@@ -170,6 +170,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Learn VAE from data")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.required = True
+    import numpy as np
+    import matplotlib.pyplot as plt
+    np.random.seed(42)
 
     fit_parser = subparsers.add_parser("fit")
     fit_parser.add_argument("dataset", type=str)
@@ -197,3 +200,13 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
     command = args.pop("command")
     command(**args)
+
+    net = load_model(Path("vae_mixture_mnist_B500_E5_N784_L2_H500_N2_D.pickle"))
+    X_var = T.matrix()
+    X_train, X_val, y_train = load_dataset("mnist", False)
+    x_weights = get_output(net["z_weights"], X_var, deterministic=True)
+    weights_func = theano.function([X_var], x_weights)
+    weights = weights_func(X_train)
+    print(weights)
+    print(Counter(np.argmax(weights, axis=1)))
+
