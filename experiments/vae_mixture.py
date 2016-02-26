@@ -6,6 +6,7 @@ from pathlib import Path
 
 import theano
 import theano.tensor as T
+from lasagne.init import Constant
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
@@ -62,7 +63,7 @@ def build_model(p):
                                        nonlinearity=identity))
 
     net["z_weights"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
-                                  nonlinearity=softmax)
+                                  nonlinearity=softmax, W=Constant(0))
 
     net["z"] = GMMNoiseLayer(z_mus, z_log_covars, net["z_weights"],
                              p.num_components)
