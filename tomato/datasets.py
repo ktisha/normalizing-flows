@@ -70,9 +70,9 @@ def load_frey_dataset(continuous):
     return X_train, X_val
 
 
-def load_dataset(name, continuous):
+def load_dataset(name, continuous, returnLabels=False):
     if name == "mnist":
-        return load_mnist_dataset(continuous)
+        return load_mnist_dataset(continuous, returnLabels)
     elif name == "frey":
         return load_frey_dataset(continuous)
     else:
