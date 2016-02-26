@@ -14,7 +14,7 @@ if not DATA_ROOT.exists():
     DATA_ROOT.mkdir(parents=True)
 
 
-def load_mnist_dataset(continuous):
+def load_mnist_dataset(continuous, returnLabels=False):
     def download(path):
         print("Downloading {}".format(path))
         urlretrieve("http://yann.lecun.com/exdb/mnist/" + path.name, str(path))
@@ -49,6 +49,8 @@ def load_mnist_dataset(continuous):
     y_train, y_val = y_train[:-10000], y_train[-10000:]
 
     # Don't use test data (we use val for this) and labels.
+    if returnLabels:
+        return X_train, X_val, y_train, y_val
     return X_train, X_val
 
 
