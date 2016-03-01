@@ -57,10 +57,10 @@ def build_model(p):
     for i in range(p.num_components):
         z_mus.append(DenseLayer(net["enc_hidden"],
                                 num_units=p.num_latent,
-                                nonlinearity=identity))
+                                nonlinearity=identity, W=Constant(0)))
         z_log_covars.append(DenseLayer(net["enc_hidden"],
                                        num_units=p.num_latent,
-                                       nonlinearity=identity))
+                                       nonlinearity=identity, W=Constant(0)))
 
     net["z_weights"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
                                   nonlinearity=softmax, W=Constant(0))
@@ -93,17 +93,26 @@ def elbo(X_var, net, p, **kwargs):
     else:
         logpxz = bernoulli_logpmf(X_var, x_mu_var)
 
-    z_var = get_output(net["z"], X_var, **kwargs)  # (input, latent)
-    logpz = mvn_std_logpdf(z_var)
-
+    logpzs = []
+    logqzxs = []
     z_mu_vars = T.stacklists(get_output(net["z_mus"], X_var, **kwargs))
-    z_log_covar_vars = T.stacklists(
-        get_output(net["z_log_covars"], X_var, **kwargs))
+    z_log_covar_vars = T.stacklists(get_output(net["z_log_covars"], X_var, **kwargs))
     z_weight_vars = get_output(net["z_weights"], X_var, **kwargs).T
 
-    z_weight_vars = theano.gradient.zero_grad(z_weight_vars)
+    for i in range(p.num_components):
+        z_var = get_output(net["z"], X_var, **kwargs)  # (input, latent)
+        logpz = mvn_std_logpdf(z_var)
+        logpzs.append(logpz)
 
-    logqzx = mvn_log_logpdf_weighted(z_var, z_mu_vars, z_log_covar_vars, z_weight_vars)
+        logqzx = mvn_log_logpdf_weighted(z_var, z_mu_vars, z_log_covar_vars, z_weight_vars)
+        logqzxs.append(logqzx)
+
+    logpz = T.stacklists(logpzs).sum(axis=0)
+    logqzx = T.stacklists(logqzxs).sum(axis=0)
+    logw = T.log(z_weight_vars) * z_weight_vars
+    logqzx += logw.sum(axis=0)
+    # z_weight_vars = theano.gradient.zero_grad(z_weight_vars)
+
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return T.mean(
@@ -178,7 +187,7 @@ if __name__ == "__main__":
     fit_parser.add_argument("dataset", type=str)
     fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
-    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=300)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=10)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-N", dest="num_components", type=int, default=10)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
@@ -201,29 +210,21 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
-    net = load_model(Path("vae_mixture_mnist_B500_E5_N784_L2_H500_N2_D.pickle"))
-    X_var = T.matrix()
-    X_train, X_val, y_train = load_dataset("mnist", False)
-    x_weights = get_output(net["z_weights"], X_var, deterministic=True)
-    weights_func = theano.function([X_var], x_weights)
-    weights = weights_func(X_train)
-    print(weights)
-    print(Counter(np.argmax(weights, axis=1)))
+    # net = load_model(Path("vae_mixture_mnist_B500_E20_N784_L2_H500_N10_D.pickle"))
+    # X_var = T.matrix()
+    # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
+    # x_weights = get_output(net["z_weights"], X_var, deterministic=True)
+    # weights_func = theano.function([X_var], x_weights)
+    # weights = weights_func(X_train)
+    # print(weights)
+    # print(Counter(np.argmax(weights, axis=1)))
 
 
-    x_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
-    x_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
-    x_mu = theano.function([X_var], x_mu_function)
-    x_covar = theano.function([X_var], x_log_function)
-
-    mus = x_mu(X_train)
-    covars = np.exp(x_covar(X_train))
-
-    for y in set(y_train):
-        mask = y_train == y
-        x1 = np.random.multivariate_normal(np.mean(mus[1][mask], axis=0), np.diag(np.mean(covars[1][mask], axis=0)), 1000)
-        x2 = np.random.multivariate_normal(np.mean(mus[0][mask], axis=0), np.diag(np.mean(covars[0][mask], axis=0)), 1000)
-        plt.scatter(x1[:, 0], x1[:, 1])
-        plt.scatter(x2[:, 0], x2[:, 1], c='r')
-        plt.show()
-        plt.clf()
+    # x_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
+    # x_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
+    # x_mu = theano.function([X_var], x_mu_function)
+    # x_covar = theano.function([X_var], x_log_function)
+    #
+    # X_val = np.array([X_val[0]])
+    # mus = x_mu(X_val)
+    # covars = np.exp(x_covar(X_val))

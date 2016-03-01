@@ -90,7 +90,7 @@ class GMMNoiseLayer(MergeLayer):
     def get_output_for(self, input, deterministic=False, **kwargs):
         mus = T.stacklists(input[:int(self.n_components)])   # (n_components, batch_size, latent)
         log_covars = T.stacklists(input[int(self.n_components):int(2*self.n_components)])
-        weights = input[int(2*self.n_components)]   # (n_components, batch_size)
+        weights = input[int(2*self.n_components)]   # (batch_size, n_components)
 
         idx = T.argmax(self._srng.multinomial(pvals=weights, n=1), axis=1)  # (batch_size, )
 
@@ -99,7 +99,8 @@ class GMMNoiseLayer(MergeLayer):
         log_covar = log_covars[idx, range_array]
 
         if deterministic:
-            return mu
+            idx = T.argmax(weights, axis=1)
+            return mus[idx, range_array]
         else:
             eps = self._srng.normal(mu.shape)
             return mu + T.exp(log_covar) * eps
