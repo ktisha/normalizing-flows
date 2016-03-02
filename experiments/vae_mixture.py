@@ -10,16 +10,17 @@ from lasagne.init import Constant
 from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
+from lasagne.layers.merge import ConcatLayer
 from lasagne.nonlinearities import identity, tanh, softmax, sigmoid
 from lasagne.updates import adam
 from theano.gradient import grad
 
 from tomato.datasets import load_dataset
-from tomato.layers import GMMNoiseLayer
+from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold
 from tomato.plot_utils import plot_sample
 from tomato.utils import mvn_log_logpdf, \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, bernoulli_logpmf, mvn_log_logpdf_weighted
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, bernoulli_logpmf
 
 theano.config.floatX = 'float64'
 
@@ -54,20 +55,20 @@ def build_model(p):
 
     net["z_mus"] = z_mus = []
     net["z_log_covars"] = z_log_covars = []
+    net["zs"] = zs = []
     for i in range(p.num_components):
-        z_mus.append(DenseLayer(net["enc_hidden"],
-                                num_units=p.num_latent,
-                                nonlinearity=identity, W=Constant(0)))
-        z_log_covars.append(DenseLayer(net["enc_hidden"],
-                                       num_units=p.num_latent,
-                                       nonlinearity=identity, W=Constant(0)))
+        mu = DenseLayer(net["enc_hidden"], num_units=p.num_latent, nonlinearity=identity)
+        z_mus.append(mu)
+        covar = DenseLayer(net["enc_hidden"], num_units=p.num_latent, nonlinearity=identity)
+        z_log_covars.append(covar)
+        zs.append(GaussianNoiseLayer(mu, covar))
 
     net["z_weights"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
                                   nonlinearity=softmax, W=Constant(0))
 
-    net["z"] = GMMNoiseLayer(z_mus, z_log_covars, net["z_weights"],
-                             p.num_components)
-
+    z_input = [net["z_weights"]]
+    z_input.extend(zs)
+    net["z"] = ConcatLayer(z_input)
     # q(x|z)
     net["dec_hidden"] = DenseLayer(net["z"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
@@ -97,22 +98,21 @@ def elbo(X_var, net, p, **kwargs):
     logqzxs = []
     z_mu_vars = T.stacklists(get_output(net["z_mus"], X_var, **kwargs))
     z_log_covar_vars = T.stacklists(get_output(net["z_log_covars"], X_var, **kwargs))
+    z_vars = T.stacklists(get_output(net["zs"], X_var, **kwargs))
     z_weight_vars = get_output(net["z_weights"], X_var, **kwargs).T
 
     for i in range(p.num_components):
-        z_var = get_output(net["z"], X_var, **kwargs)  # (input, latent)
+        z_var = z_vars[i]
         logpz = mvn_std_logpdf(z_var)
         logpzs.append(logpz)
 
-        logqzx = mvn_log_logpdf_weighted(z_var, z_mu_vars, z_log_covar_vars, z_weight_vars)
+        logqzx = mvn_log_logpdf(z_var, z_mu_vars[i], z_log_covar_vars[i]) * z_weight_vars[i]
         logqzxs.append(logqzx)
 
     logpz = T.stacklists(logpzs).sum(axis=0)
     logqzx = T.stacklists(logqzxs).sum(axis=0)
     logw = T.log(z_weight_vars) * z_weight_vars
     logqzx += logw.sum(axis=0)
-    # z_weight_vars = theano.gradient.zero_grad(z_weight_vars)
-
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return T.mean(
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     fit_parser.add_argument("dataset", type=str)
     fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
-    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=10)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=100)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-N", dest="num_components", type=int, default=10)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
@@ -210,7 +210,7 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
-    # net = load_model(Path("vae_mixture_mnist_B500_E20_N784_L2_H500_N10_D.pickle"))
+    # net = load_model(Path("vae_mixture_mnist_B500_E150_N784_L2_H500_N2_D.pickle"))
     # X_var = T.matrix()
     # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
     # x_weights = get_output(net["z_weights"], X_var, deterministic=True)
