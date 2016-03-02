@@ -94,23 +94,14 @@ def elbo(X_var, net, p, **kwargs):
     else:
         logpxz = bernoulli_logpmf(X_var, x_mu_var)
 
-    logpzs = []
-    logqzxs = []
     z_mu_vars = T.stacklists(get_output(net["z_mus"], X_var, **kwargs))
     z_log_covar_vars = T.stacklists(get_output(net["z_log_covars"], X_var, **kwargs))
     z_vars = T.stacklists(get_output(net["zs"], X_var, **kwargs))
     z_weight_vars = get_output(net["z_weights"], X_var, **kwargs).T
 
-    for i in range(p.num_components):
-        z_var = z_vars[i]
-        logpz = mvn_std_logpdf(z_var)
-        logpzs.append(logpz)
+    logpz = mvn_std_logpdf(z_vars).sum(axis=0)
+    logqzx = (mvn_log_logpdf(z_vars, z_mu_vars, z_log_covar_vars) * z_weight_vars).sum(axis=0)
 
-        logqzx = mvn_log_logpdf(z_var, z_mu_vars[i], z_log_covar_vars[i]) * z_weight_vars[i]
-        logqzxs.append(logqzx)
-
-    logpz = T.stacklists(logpzs).sum(axis=0)
-    logqzx = T.stacklists(logqzxs).sum(axis=0)
     logw = T.log(z_weight_vars) * z_weight_vars
     logqzx += logw.sum(axis=0)
 
@@ -218,13 +209,21 @@ if __name__ == "__main__":
     # weights = weights_func(X_train)
     # print(weights)
     # print(Counter(np.argmax(weights, axis=1)))
-
-
+    #
+    #
     # x_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
     # x_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
     # x_mu = theano.function([X_var], x_mu_function)
     # x_covar = theano.function([X_var], x_log_function)
     #
-    # X_val = np.array([X_val[0]])
-    # mus = x_mu(X_val)
-    # covars = np.exp(x_covar(X_val))
+    # mus = x_mu(X_train)
+    # covars = np.exp(x_covar(X_train))
+    #
+    # for y in set(y_train):
+    #     mask = y_train == y
+    #     x1 = np.random.multivariate_normal(np.mean(mus[1][mask], axis=0), np.diag(np.mean(covars[1][mask], axis=0)), 1000)
+    #     x2 = np.random.multivariate_normal(np.mean(mus[0][mask], axis=0), np.diag(np.mean(covars[0][mask], axis=0)), 1000)
+    #     plt.scatter(x1[:, 0], x1[:, 1])
+    #     plt.scatter(x2[:, 0], x2[:, 1], c='r')
+    #     plt.show()
+    #     plt.clf()

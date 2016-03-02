@@ -29,7 +29,7 @@ def mvn_logpdf(X, mean, covar):
 def mvn_log_logpdf(X, mean, log_covar):
     return -.5 * (T.log(2 * np.pi)
                   + log_covar
-                  + T.square((X - mean)) / T.exp(log_covar)).sum(axis=1)
+                  + T.square((X - mean)) / T.exp(log_covar)).sum(axis=-1)
 
 
 def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
@@ -41,7 +41,7 @@ def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
 
 
 def mvn_std_logpdf(X):
-    return -.5 * (T.log(2 * np.pi) + T.square(X)).sum(axis=1)
+    return -.5 * (T.log(2 * np.pi) + T.square(X)).sum(axis=-1)
 
 
 def bernoulli_logpmf(X, p):
