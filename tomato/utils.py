@@ -132,11 +132,13 @@ class Monitor:
 
         return self.snapshots[epoch]
 
-    def report(self, snapshot, sw, train_err, val_err):
+    def report(self, snapshot, sw, train_err, val_err, val_likelihood=None):
         print("Epoch {} of {} took {}"
               .format(self.epoch + 1, self.num_epochs, sw))
         print("  training loss:\t\t{:.6f}".format(train_err))
         print("  validation loss:\t\t{:.6f}".format(val_err))
+        if val_likelihood:
+            print("  validation likelihood:\t\t{:.6f}".format(val_likelihood))
         assert not np.isnan(train_err) and not np.isnan(val_err)
         self.snapshots.append(copy.deepcopy(snapshot))
         self.train_errs.append(train_err)

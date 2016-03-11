@@ -110,6 +110,38 @@ def elbo(X_var, net, p, **kwargs):
     )
 
 
+def likelihood(X_var, net, p, n_samples, **kwargs):
+    x_mu_var = get_output(net["x_mu"], X_var, **kwargs)  # (input, features)
+    if p.continuous:
+        x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)  # (input, features)
+        logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
+    else:
+        logpxz = bernoulli_logpmf(X_var, x_mu_var)
+
+    logpzs = []
+    logqzxs = []
+    for i in range(n_samples):
+        z_mu_vars = T.stacklists(get_output(net["z_mus"], X_var, **kwargs))
+        z_log_covar_vars = T.stacklists(get_output(net["z_log_covars"], X_var, **kwargs))
+        z_vars = T.stacklists(get_output(net["zs"], X_var, **kwargs))
+        z_weight_vars = get_output(net["z_weights"], X_var, **kwargs).T
+
+        logpz = mvn_std_logpdf(z_vars).sum(axis=0)
+        logpzs.append(logpz)
+        logqzx = (mvn_log_logpdf_weighted(z_vars, z_mu_vars, z_log_covar_vars, z_weight_vars) * z_weight_vars).sum(axis=0)
+        logqzxs.append(logqzx)
+
+    logpz = T.stacklists(logpzs)
+    logqzx = T.stacklists(logqzxs)
+    logw = logpxz + logpz - logqzx
+
+    logw = T.transpose(logw)
+    max_w = T.max(logw, 1, keepdims=True)
+    adjusted_w = logw - max_w
+    ll = max_w + T.log(T.mean(T.exp(adjusted_w), 1, keepdims=True))
+    return T.mean(ll)
+
+
 def load_model(path):
     print("Building model and compiling functions...")
     net = build_model(Params.from_path(str(path)))
@@ -140,7 +172,7 @@ def fit_model(**kwargs):
     updates = adam(updates, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
-
+    validation_likelihood = theano.function([X_var], likelihood(X_var, net, p, 200))
     print("Starting training...")
     monitor = Monitor(p.num_epochs, stop_early=False)
     sw = Stopwatch()
@@ -151,13 +183,16 @@ def fit_model(**kwargs):
                 train_batches += 1
                 train_err += (train_nelbo(Xb) - train_err) / train_batches
 
-            val_err, val_batches = 0, 0
+            val_err, val_batches, val_likelihood = 0, 0, 0
             for Xb in iter_minibatches(X_val, 50):
                 val_batches += 1
                 val_err += (val_nelbo(Xb) - val_err) / val_batches
 
+                vlb = validation_likelihood(Xb)
+                val_likelihood += (vlb - val_likelihood) / val_batches
+
         snapshot = get_all_param_values(net["dec_output"])
-        monitor.report(snapshot, sw, train_err, val_err)
+        monitor.report(snapshot, sw, train_err, val_err, val_likelihood)
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
@@ -179,7 +214,7 @@ if __name__ == "__main__":
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
     fit_parser.add_argument("-E", dest="num_epochs", type=int, default=100)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
-    fit_parser.add_argument("-N", dest="num_components", type=int, default=10)
+    fit_parser.add_argument("-N", dest="num_components", type=int, default=1)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
                             default=False)
     fit_parser.set_defaults(command=fit_model)
