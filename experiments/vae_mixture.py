@@ -20,7 +20,7 @@ from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold
 from tomato.plot_utils import plot_sample
 from tomato.utils import mvn_log_logpdf, \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, bernoulli_logpmf
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, bernoulli_logpmf, mvn_log_logpdf_weighted
 
 theano.config.floatX = 'float64'
 
@@ -46,7 +46,7 @@ class Params(namedtuple("Params", [
                    num_hidden, num_components, continuous=dc == "C")
 
 
-def build_model(p):
+def build_model(p, bias=Constant(0)):
     net = {}
     # q(z|x)
     net["enc_input"] = InputLayer((None, p.num_features))
@@ -74,7 +74,7 @@ def build_model(p):
                                    nonlinearity=tanh)
 
     net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
-                             nonlinearity=sigmoid)
+                             nonlinearity=sigmoid, b=bias)
     if p.continuous:
         net["x_log_covar"] = DenseLayer(net["dec_hidden"],
                                         num_units=p.num_features,
@@ -100,10 +100,7 @@ def elbo(X_var, net, p, **kwargs):
     z_weight_vars = get_output(net["z_weights"], X_var, **kwargs).T
 
     logpz = mvn_std_logpdf(z_vars).sum(axis=0)
-    logqzx = (mvn_log_logpdf(z_vars, z_mu_vars, z_log_covar_vars) * z_weight_vars).sum(axis=0)
-
-    logw = T.log(z_weight_vars) * z_weight_vars
-    logqzx += logw.sum(axis=0)
+    logqzx = (mvn_log_logpdf_weighted(z_vars, z_mu_vars, z_log_covar_vars, z_weight_vars) * z_weight_vars).sum(axis=0)
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     return T.mean(
@@ -124,12 +121,15 @@ def load_model(path):
 def fit_model(**kwargs):
     print("Loading data...")
     X_train, X_val = load_dataset(kwargs["dataset"], kwargs["continuous"])
+    train_mean = np.mean(X_train, axis=0)
+    train_bias = -np.log(1. / np.clip(train_mean, 0.001, 0.999) - 1.)
+
     num_features = X_train.shape[1]  # XXX abstraction leak.
     p = Params(num_features=num_features, **kwargs)
 
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
-    net = build_model(p)
+    net = build_model(p, train_bias)
 
     elbo_train = elbo(X_var, net, p, deterministic=False)
     elbo_val = elbo(X_var, net, p, deterministic=True)
@@ -137,7 +137,7 @@ def fit_model(**kwargs):
     params = get_all_params(net["dec_output"], trainable=True)
 
     updates = grad(-elbo_train, params, disconnected_inputs='warn')
-    updates = adam(updates, params, learning_rate=1e-3)
+    updates = adam(updates, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
     train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], -elbo_val)
 
@@ -148,17 +148,16 @@ def fit_model(**kwargs):
         with sw:
             train_err, train_batches = 0, 0
             for Xb in iter_minibatches(X_train, p.batch_size):
-                train_err += train_nelbo(Xb)
                 train_batches += 1
+                train_err += (train_nelbo(Xb) - train_err) / train_batches
 
             val_err, val_batches = 0, 0
-            for Xb in iter_minibatches(X_val, p.batch_size):
-                val_err += val_nelbo(Xb)
+            for Xb in iter_minibatches(X_val, 50):
                 val_batches += 1
+                val_err += (val_nelbo(Xb) - val_err) / val_batches
 
         snapshot = get_all_param_values(net["dec_output"])
-        monitor.report(snapshot, sw, train_err / train_batches,
-                       val_err / val_batches)
+        monitor.report(snapshot, sw, train_err, val_err)
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
@@ -201,15 +200,20 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
-    # net = load_model(Path("vae_mixture_mnist_B500_E150_N784_L2_H500_N2_D.pickle"))
+    # net = load_model(Path("vae_mixture_mnist_B500_E100_N784_L2_H500_N10_D.pickle"))
     # X_var = T.matrix()
     # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
     # x_weights = get_output(net["z_weights"], X_var, deterministic=True)
     # weights_func = theano.function([X_var], x_weights)
-    # weights = weights_func(X_train)
-    # print(weights)
-    # print(Counter(np.argmax(weights, axis=1)))
-    #
+    # print(X_val.shape)
+    # for y in set(y_train):
+    #     print("y " + str(y))
+    #     mask = y_train == y
+    #     X_vali = X_train[mask, :]
+    #     weights = weights_func(X_vali)
+    #     # print(weights)
+    #     print(Counter(np.argmax(weights, axis=1)))
+
     #
     # x_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
     # x_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)

@@ -23,14 +23,13 @@ def mvn_logpdf(X, mean, covar):
     """Computes log-pdf of the multivariate normal with diagonal covariance."""
     return -.5 * (T.log(2 * np.pi)
                   + T.log(covar)
-                  + T.square((X - mean)) / covar).sum(axis=1)
+                  + T.square((X - mean) / covar)).sum(axis=1)
 
 
 def mvn_log_logpdf(X, mean, log_covar):
     return -.5 * (T.log(2 * np.pi)
-                  + log_covar
-                  + T.square((X - mean)) / T.exp(log_covar)).sum(axis=-1)
-
+                  + 2* log_covar
+                  + T.square((X - mean) / T.exp(log_covar))).sum(axis=-1)
 
 def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
     inner = -.5 * (T.log(2 * np.pi)
