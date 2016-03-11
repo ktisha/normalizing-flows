@@ -170,8 +170,8 @@ def fit_model(**kwargs):
 
     updates = grad(-elbo_train, params, disconnected_inputs='warn')
     updates = adam(updates, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
-    train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
-    val_nelbo = theano.function([X_var], -elbo_val)
+    train_nelbo = theano.function([X_var], elbo_train, updates=updates)
+    val_nelbo = theano.function([X_var], elbo_val)
     validation_likelihood = theano.function([X_var], likelihood(X_var, net, p, 200))
     print("Starting training...")
     monitor = Monitor(p.num_epochs, stop_early=False)
