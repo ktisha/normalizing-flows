@@ -135,10 +135,9 @@ def likelihood(X_var, net, p, n_samples, **kwargs):
     logqzx = T.stacklists(logqzxs)
     logw = logpxz + logpz - logqzx
 
-    logw = T.transpose(logw)
-    max_w = T.max(logw, 1, keepdims=True)
+    max_w = T.max(logw, 0, keepdims=True)
     adjusted_w = logw - max_w
-    ll = max_w + T.log(T.mean(T.exp(adjusted_w), 1, keepdims=True))
+    ll = max_w + T.log(T.mean(T.exp(adjusted_w), 0, keepdims=True))
     return T.mean(ll)
 
 
@@ -235,29 +234,46 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
-    # net = load_model(Path("vae_mixture_mnist_B500_E100_N784_L2_H500_N10_D.pickle"))
+    # net = load_model(Path("mar9/vae_mixture_mnist_B500_E100_N784_L2_H500_N2_D.pickle"))
     # X_var = T.matrix()
     # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
-    # x_weights = get_output(net["z_weights"], X_var, deterministic=True)
-    # weights_func = theano.function([X_var], x_weights)
-    # print(X_val.shape)
-    # for y in set(y_train):
-    #     print("y " + str(y))
-    #     mask = y_train == y
-    #     X_vali = X_train[mask, :]
-    #     weights = weights_func(X_vali)
-    #     # print(weights)
-    #     print(Counter(np.argmax(weights, axis=1)))
-
+    # # x_weights = get_output(net["z_weights"], X_var, deterministic=True)
+    # # weights_func = theano.function([X_var], x_weights)
+    # # print(X_val.shape)
+    # # for y in set(y_train):
+    # #     print("y " + str(y))
+    # #     mask = y_train == y
+    # #     X_vali = X_train[mask, :]
+    # #     weights = weights_func(X_vali)
+    # #     # print(weights)
+    # #     print(Counter(np.argmax(weights, axis=1)))
     #
-    # x_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
-    # x_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
-    # x_mu = theano.function([X_var], x_mu_function)
-    # x_covar = theano.function([X_var], x_log_function)
     #
-    # mus = x_mu(X_train)
-    # covars = np.exp(x_covar(X_train))
+    # z_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
+    # z_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
+    # z_mu = theano.function([X_var], z_mu_function)
+    # z_covar = theano.function([X_var], z_log_function)
     #
+    # mus = z_mu(X_val)
+    # covars = np.exp(z_covar(X_val))
+    # print(mus[0].shape)
+    # # x1 = np.random.multivariate_normal(np.mean(mus[1], axis=0), np.diag(np.mean(covars[1], axis=0)), 1000)
+    # # x2 = np.random.multivariate_normal(np.mean(mus[0], axis=0), np.diag(np.mean(covars[0], axis=0)), 1000)
+    #
+    # plt.scatter(mus[1][y_val == 0][:, 0], mus[1][y_val == 0][:, 1])
+    # plt.scatter(mus[1][y_val == 1][:, 0], mus[1][y_val == 1][:, 1], c='r')
+    # plt.scatter(mus[1][y_val == 2][:, 0], mus[1][y_val == 2][:, 1], c='g')
+    # plt.scatter(mus[1][y_val == 3][:, 0], mus[1][y_val == 3][:, 1], c='m')
+    # plt.scatter(mus[1][y_val == 4][:, 0], mus[1][y_val == 4][:, 1], c='c')
+    # # plt.scatter(mus[1][:, 0], mus[1][:, 1], c='g')
+    # # plt.ylim([0, 50])
+    # # H, xedges, yedges = np.histogram2d(mus[1][:, 0], mus[1][:, 1], bins=100)
+    # # H1, xedges1, yedges1 = np.histogram2d(mus[0][:, 0], mus[0][:, 1], bins=100)
+    # # Hmasked = np.ma.masked_where(H == 0, H)
+    # # Hmasked1 = np.ma.masked_where(H1 == 0, H1)
+    # # plt.pcolormesh(xedges, yedges, Hmasked)
+    # # plt.pcolormesh(xedges1, yedges1, Hmasked1)
+    # plt.show()
     # for y in set(y_train):
     #     mask = y_train == y
     #     x1 = np.random.multivariate_normal(np.mean(mus[1][mask], axis=0), np.diag(np.mean(covars[1][mask], axis=0)), 1000)
