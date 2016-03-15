@@ -5,6 +5,7 @@ from lasagne.layers import get_output
 from lasagne.utils import floatX as as_floatX
 from PIL import Image
 from scipy import stats
+import matplotlib.pyplot as plt
 
 
 def plot_manifold(path, load_model, load_params, num_steps):
@@ -68,3 +69,102 @@ def _plot_grid(path, images, continuous):
         im.paste(_image_from_array(image, continuous), (x * width, y * height))
 
     im.save(str(path))
+
+
+def plot_components_mean_by_class(mus, covars, y_train, num_components):
+    colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
+    colors = colors[:num_components]
+    for y in set(y_train):
+        mask = y_train == y
+        plt.subplot(1, len(set(y_train)), y+1)
+        plt.title("Class " + str(y))
+        for n_comp, c in enumerate(colors):
+            x1 = np.random.multivariate_normal(np.mean(mus[n_comp][mask], axis=0),
+                                               np.diag(np.mean(covars[n_comp][mask],axis=0)), 1000)
+            plt.scatter(x1[:, 0], x1[:, 1], c=c, label="comp " + str(n_comp))
+
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.show()
+
+def plot_components_mean_by_components(mus, covars, y_train, num_components):
+    colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
+
+    for n_comp in range(num_components):
+        plt.subplot(1, num_components, n_comp+1)
+        plt.title("Component " + str(n_comp))
+        for i, y in enumerate(set(y_train)):
+            mask = y_train == y
+            x1 = np.random.multivariate_normal(np.mean(mus[n_comp][mask], axis=0),
+                                               np.diag(np.mean(covars[n_comp][mask], axis=0)), 1000)
+            plt.scatter(x1[:, 0], x1[:, 1], c=colors[i], label="class " + str(i))
+
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.show()
+
+def plot_mu_by_class(mus, y_train, num_components):
+    colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
+    colors = colors[:num_components]
+
+    for y in set(y_train):
+        plt.subplot(1, len(set(y_train)), y+1)
+        plt.title("Class " + str(y))
+        for n_comp, c in enumerate(colors):
+            mask = y_train == y
+            plt.scatter(mus[n_comp][mask][:, 0], mus[n_comp][mask][:, 1], c=c, label="comp " + str(n_comp))
+
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.show()
+
+def plot_mu_by_components(mus, y_train, num_components):
+    colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
+    index = 1
+    for n_comp in range(num_components):
+        plt.subplot(1, num_components, index)
+        plt.title("Component " + str(n_comp))
+        for i, y in enumerate(set(y_train)):
+            mask = y_train == y
+            plt.scatter(mus[n_comp][mask][:, 0], mus[n_comp][mask][:, 1], c=colors[i], label="class " + str(i))
+        index += 1
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.show()
+
+
+def plot_histogram_by_class(mus, covars, y_train, num_components):
+    index = 1
+    for n_component in range(num_components):
+        xs = []
+        for y in set(y_train):
+            mask = y_train == y
+            mus_ = mus[n_component][mask]
+            covars_ = covars[n_component][mask]
+            for i in range(mus_.shape[0]):
+                x1 = np.random.multivariate_normal(mus_[i], np.diag(covars_[i]), 1000)
+                xs.append(x1)
+
+            xx = np.vstack(xs)
+            H, xedges, yedges = np.histogram2d(xx[:, 0], xx[:, 1], bins=100)
+            Hmasked = np.ma.masked_where(H == 0, H)
+            plt.subplot(num_components, len(set(y_train)), index)
+            plt.title("Comp " + str(n_component) + "; class " + str(y))
+            plt.pcolormesh(xedges, yedges, Hmasked)
+            index += 1
+
+    plt.show()
+
+
+
+def plot_full_histogram(mus, covars, num_components):
+    for k in range(num_components):
+        xs = []
+        for i in range(mus[k].shape[0]):
+            x1 = np.random.multivariate_normal(mus[k][i], np.diag(covars[k][i]), 1000)
+            xs.append(x1)
+
+        xx = np.vstack(xs)
+        H, xedges, yedges = np.histogram2d(xx[:, 0], xx[:, 1], bins=100)
+        Hmasked = np.ma.masked_where(H == 0, H)
+        plt.subplot(1, num_components, k + 1)
+        plt.title("Component " + str(k))
+        plt.pcolormesh(xedges, yedges, Hmasked)
+
+    plt.show()
