@@ -17,7 +17,8 @@ from theano.gradient import grad
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
-from tomato.plot_utils import plot_manifold
+from tomato.plot_utils import plot_manifold, plot_full_histogram, plot_histogram_by_class, plot_mu_by_class, \
+    plot_components_mean_by_class, plot_components_mean_by_components, plot_mu_by_components
 from tomato.plot_utils import plot_sample
 from tomato.utils import mvn_log_logpdf, \
     iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, bernoulli_logpmf, mvn_log_logpdf_weighted
@@ -57,9 +58,9 @@ def build_model(p, bias=Constant(0)):
     net["z_log_covars"] = z_log_covars = []
     net["zs"] = zs = []
     for i in range(p.num_components):
-        mu = DenseLayer(net["enc_hidden"], num_units=p.num_latent, nonlinearity=identity)
+        mu = DenseLayer(net["enc_hidden"], num_units=p.num_latent, nonlinearity=identity, W=Constant(0))
         z_mus.append(mu)
-        covar = DenseLayer(net["enc_hidden"], num_units=p.num_latent, nonlinearity=identity)
+        covar = DenseLayer(net["enc_hidden"], num_units=p.num_latent, nonlinearity=identity, W=Constant(0))
         z_log_covars.append(covar)
         zs.append(GaussianNoiseLayer(mu, covar))
 
@@ -198,13 +199,22 @@ def fit_model(**kwargs):
     with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(monitor.best, handle)
 
+def print_weights(X_var, X_train, y_train):
+    x_weights = get_output(net["z_weights"], X_var, deterministic=True)
+    weights_func = theano.function([X_var], x_weights)
+    for y in set(y_train):
+        print("y " + str(y))
+        mask = y_train == y
+        X_vali = X_train[mask, :]
+        weights = weights_func(X_vali)
+        print(weights)
+        print(Counter(np.argmax(weights, axis=1)))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Learn VAE from data")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.required = True
     import numpy as np
-    import matplotlib.pyplot as plt
     np.random.seed(42)
 
     fit_parser = subparsers.add_parser("fit")
@@ -213,7 +223,7 @@ if __name__ == "__main__":
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
     fit_parser.add_argument("-E", dest="num_epochs", type=int, default=100)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
-    fit_parser.add_argument("-N", dest="num_components", type=int, default=1)
+    fit_parser.add_argument("-N", dest="num_components", type=int, default=5)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
                             default=False)
     fit_parser.set_defaults(command=fit_model)
@@ -234,51 +244,24 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
-    # net = load_model(Path("mar9/vae_mixture_mnist_B500_E100_N784_L2_H500_N2_D.pickle"))
-    # X_var = T.matrix()
-    # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
-    # # x_weights = get_output(net["z_weights"], X_var, deterministic=True)
-    # # weights_func = theano.function([X_var], x_weights)
-    # # print(X_val.shape)
-    # # for y in set(y_train):
-    # #     print("y " + str(y))
-    # #     mask = y_train == y
-    # #     X_vali = X_train[mask, :]
-    # #     weights = weights_func(X_vali)
-    # #     # print(weights)
-    # #     print(Counter(np.argmax(weights, axis=1)))
-    #
-    #
-    # z_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
-    # z_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
-    # z_mu = theano.function([X_var], z_mu_function)
-    # z_covar = theano.function([X_var], z_log_function)
-    #
-    # mus = z_mu(X_val)
-    # covars = np.exp(z_covar(X_val))
-    # print(mus[0].shape)
-    # # x1 = np.random.multivariate_normal(np.mean(mus[1], axis=0), np.diag(np.mean(covars[1], axis=0)), 1000)
-    # # x2 = np.random.multivariate_normal(np.mean(mus[0], axis=0), np.diag(np.mean(covars[0], axis=0)), 1000)
-    #
-    # plt.scatter(mus[1][y_val == 0][:, 0], mus[1][y_val == 0][:, 1])
-    # plt.scatter(mus[1][y_val == 1][:, 0], mus[1][y_val == 1][:, 1], c='r')
-    # plt.scatter(mus[1][y_val == 2][:, 0], mus[1][y_val == 2][:, 1], c='g')
-    # plt.scatter(mus[1][y_val == 3][:, 0], mus[1][y_val == 3][:, 1], c='m')
-    # plt.scatter(mus[1][y_val == 4][:, 0], mus[1][y_val == 4][:, 1], c='c')
-    # # plt.scatter(mus[1][:, 0], mus[1][:, 1], c='g')
-    # # plt.ylim([0, 50])
-    # # H, xedges, yedges = np.histogram2d(mus[1][:, 0], mus[1][:, 1], bins=100)
-    # # H1, xedges1, yedges1 = np.histogram2d(mus[0][:, 0], mus[0][:, 1], bins=100)
-    # # Hmasked = np.ma.masked_where(H == 0, H)
-    # # Hmasked1 = np.ma.masked_where(H1 == 0, H1)
-    # # plt.pcolormesh(xedges, yedges, Hmasked)
-    # # plt.pcolormesh(xedges1, yedges1, Hmasked1)
-    # plt.show()
-    # for y in set(y_train):
-    #     mask = y_train == y
-    #     x1 = np.random.multivariate_normal(np.mean(mus[1][mask], axis=0), np.diag(np.mean(covars[1][mask], axis=0)), 1000)
-    #     x2 = np.random.multivariate_normal(np.mean(mus[0][mask], axis=0), np.diag(np.mean(covars[0][mask], axis=0)), 1000)
-    #     plt.scatter(x1[:, 0], x1[:, 1])
-    #     plt.scatter(x2[:, 0], x2[:, 1], c='r')
-    #     plt.show()
-    #     plt.clf()
+    path = Path("vae_mixture_mnist_B500_E100_N784_L2_H500_N5_D.pickle")
+    net = load_model(path)
+    p = Params.from_path(str(path))
+    X_var = T.matrix()
+    X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
+
+    print_weights(X_var, X_train, y_train)
+
+    z_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
+    z_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
+    z_mu = theano.function([X_var], z_mu_function)
+    z_covar = theano.function([X_var], z_log_function)
+    mus = z_mu(X_train)
+    covars = np.exp(z_covar(X_train))
+
+    # plot_full_histogram(mus, covars, p.num_components)
+    # plot_histogram_by_class(mus, covars, y_train, p.num_components)
+    # plot_mu_by_class(mus, y_train, p.num_components)
+    # plot_mu_by_components(mus, y_train, p.num_components)
+    # plot_components_mean_by_class(mus, covars, y_train, p.num_components)
+    # plot_components_mean_by_components(mus, covars, y_train, p.num_components)
