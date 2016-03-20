@@ -26,15 +26,25 @@ def mvn_logpdf(X, mean, covar):
                   + T.square((X - mean) / covar)).sum(axis=1)
 
 
+def bernoulli(X, mu):
+    return T.power(mu, X) * T.power((1.0 - mu), (1.0 - X))
+
+
+def mvn_logsigma_pdf(x, mu, sigma):
+    u = (x - mu) / (T.exp(sigma))
+    return (1 / (T.sqrt(2 * np.pi) * (T.exp(sigma)))) * T.exp(-u * u / 2)
+
+
 def mvn_log_logpdf(X, mean, log_covar):
     return -.5 * (T.log(2 * np.pi)
                   + 2* log_covar
                   + T.square((X - mean) / T.exp(log_covar))).sum(axis=-1)
 
+
 def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
     inner = -.5 * (T.log(2 * np.pi)
-                   + log_covar
-                   + T.square(X - mean) / T.exp(log_covar)).sum(axis=-1)
+                   + 2 * log_covar
+                   + T.square((X - mean) / T.exp(log_covar)))
     inner = inner + T.log(weights)
     return logsumexp(inner, axis=0)
 
@@ -105,6 +115,8 @@ class Monitor:
         self.snapshots = deque(maxlen=tolerance)
         self.train_errs = []
         self.val_errs = []
+        self.val_likelihood = []
+        self.eps = 0.01
 
     def __bool__(self):
         if self.epoch == self.num_epochs:
@@ -112,6 +124,9 @@ class Monitor:
 
         if self.epoch < self.tolerance:
             return True
+
+        if len(self.val_errs) > 2 and self.val_errs[-1]  < self.train_errs[-1]:
+            return False
 
         if not self.stop_early:
             return True
@@ -138,6 +153,7 @@ class Monitor:
         print("  training loss:\t\t{:.6f}".format(train_err))
         print("  validation loss:\t\t{:.6f}".format(val_err))
         if val_likelihood:
+            self.val_likelihood.append(val_likelihood)
             print("  validation likelihood:\t\t{:.6f}".format(val_likelihood))
         assert not np.isnan(train_err) and not np.isnan(val_err)
         self.snapshots.append(copy.deepcopy(snapshot))

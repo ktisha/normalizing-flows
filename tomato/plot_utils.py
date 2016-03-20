@@ -152,7 +152,6 @@ def plot_histogram_by_class(mus, covars, y_train, num_components):
     plt.show()
 
 
-
 def plot_full_histogram(mus, covars, num_components):
     for k in range(num_components):
         xs = []
