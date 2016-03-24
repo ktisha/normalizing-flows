@@ -27,10 +27,12 @@ def load_mnist_dataset(continuous, returnLabels=False):
             data = (np.frombuffer(handle.read(), np.uint8, offset=16)
                  .reshape(-1, 28 * 28))
 
+        data = data / as_floatX(255)  # Convert to [0, 1).
         if continuous:
-            return data / as_floatX(256)  # Convert to [0, 1).
+            return data
         else:
-            return np.where(data <= 127, as_floatX(0), as_floatX(1))
+            return np.random.binomial(n=1, p=data, size=data.shape)
+            # return np.where(data <= 127, as_floatX(0), as_floatX(1))
 
     def load_mnist_labels(path):
         if not path.exists():
@@ -62,7 +64,7 @@ def load_frey_dataset(continuous):
 
     data = loadmat(str(path))["ff"].T
     if continuous:
-        X = data / as_floatX(256)  # Convert to [0, 1).
+        X = data / as_floatX(255)  # Convert to [0, 1).
     else:
         X = np.where(data <= 127, as_floatX(0), as_floatX(1))
 
