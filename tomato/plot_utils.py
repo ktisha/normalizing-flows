@@ -74,9 +74,10 @@ def _plot_grid(path, images, continuous):
 def plot_components_mean_by_class(mus, covars, y_train, num_components):
     colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
     colors = colors[:num_components]
+    ax1 = None
     for y in set(y_train):
         mask = y_train == y
-        plt.subplot(1, len(set(y_train)), y+1)
+        ax1 = plt.subplot(1, len(set(y_train)), y+1, sharex=ax1, sharey=ax1)
         plt.title("Class " + str(y))
         for n_comp, c in enumerate(colors):
             x1 = np.random.multivariate_normal(np.mean(mus[n_comp][mask], axis=0),
@@ -88,9 +89,9 @@ def plot_components_mean_by_class(mus, covars, y_train, num_components):
 
 def plot_components_mean_by_components(mus, covars, y_train, num_components):
     colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
-
+    ax1 = None
     for n_comp in range(num_components):
-        plt.subplot(1, num_components, n_comp+1)
+        ax1 = plt.subplot(1, num_components, n_comp+1, sharex=ax1, sharey=ax1)
         plt.title("Component " + str(n_comp))
         for i, y in enumerate(set(y_train)):
             mask = y_train == y
@@ -104,9 +105,9 @@ def plot_components_mean_by_components(mus, covars, y_train, num_components):
 def plot_mu_by_class(mus, y_train, num_components):
     colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
     colors = colors[:num_components]
-
+    ax1 = None
     for y in set(y_train):
-        plt.subplot(1, len(set(y_train)), y+1)
+        ax1 = plt.subplot(1, len(set(y_train)), y+1, sharex=ax1, sharey=ax1)
         plt.title("Class " + str(y))
         for n_comp, c in enumerate(colors):
             mask = y_train == y
@@ -118,8 +119,9 @@ def plot_mu_by_class(mus, y_train, num_components):
 def plot_mu_by_components(mus, y_train, num_components):
     colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
     index = 1
+    ax1 = None
     for n_comp in range(num_components):
-        plt.subplot(1, num_components, index)
+        ax1 = plt.subplot(1, num_components, index, sharex=ax1, sharey=ax1)
         plt.title("Component " + str(n_comp))
         for i, y in enumerate(set(y_train)):
             mask = y_train == y
@@ -131,6 +133,7 @@ def plot_mu_by_components(mus, y_train, num_components):
 
 def plot_histogram_by_class(mus, covars, y_train, num_components):
     index = 1
+    ax1 = None
     for n_component in range(num_components):
         xs = []
         for y in set(y_train):
@@ -144,7 +147,7 @@ def plot_histogram_by_class(mus, covars, y_train, num_components):
             xx = np.vstack(xs)
             H, xedges, yedges = np.histogram2d(xx[:, 0], xx[:, 1], bins=100)
             Hmasked = np.ma.masked_where(H == 0, H)
-            plt.subplot(num_components, len(set(y_train)), index)
+            ax1 = plt.subplot(num_components, len(set(y_train)), index, sharex=ax1, sharey=ax1)
             plt.title("Comp " + str(n_component) + "; class " + str(y))
             plt.pcolormesh(xedges, yedges, Hmasked)
             index += 1
@@ -153,6 +156,7 @@ def plot_histogram_by_class(mus, covars, y_train, num_components):
 
 
 def plot_full_histogram(mus, covars, num_components):
+    ax1 = None
     for k in range(num_components):
         xs = []
         for i in range(mus[k].shape[0]):
@@ -162,7 +166,7 @@ def plot_full_histogram(mus, covars, num_components):
         xx = np.vstack(xs)
         H, xedges, yedges = np.histogram2d(xx[:, 0], xx[:, 1], bins=100)
         Hmasked = np.ma.masked_where(H == 0, H)
-        plt.subplot(1, num_components, k + 1)
+        ax1 = plt.subplot(1, num_components, k + 1, sharex=ax1, sharey=ax1)
         plt.title("Component " + str(k))
         plt.pcolormesh(xedges, yedges, Hmasked)
 
