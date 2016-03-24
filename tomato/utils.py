@@ -23,28 +23,35 @@ def mvn_logpdf(X, mean, covar):
     """Computes log-pdf of the multivariate normal with diagonal covariance."""
     return -.5 * (T.log(2 * np.pi)
                   + T.log(covar)
-                  + T.square((X - mean) / covar)).sum(axis=1)
+                  + T.square(X - mean) / covar).sum(axis=1)
 
 
 def bernoulli(X, mu):
     return T.power(mu, X) * T.power((1.0 - mu), (1.0 - X))
 
 
-def mvn_logsigma_pdf(x, mu, sigma):
-    u = (x - mu) / (T.exp(sigma))
-    return (1 / (T.sqrt(2 * np.pi) * (T.exp(sigma)))) * T.exp(-u * u / 2)
+def mvn_logvar_pdf(x, mu, log_covar):
+    covar = T.exp(log_covar)
+    u = -T.square(x - mu) / (2 * covar)
+    return T.exp(u) / (T.sqrt(2 * np.pi * covar))
 
 
 def mvn_log_logpdf(X, mean, log_covar):
     return -.5 * (T.log(2 * np.pi)
-                  + 2* log_covar
-                  + T.square((X - mean) / T.exp(log_covar))).sum(axis=-1)
+                  + log_covar
+                  + T.square(X - mean) / T.exp(log_covar)).sum(axis=-1)
 
 
 def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
     inner = -.5 * (T.log(2 * np.pi)
-                   + 2 * log_covar
-                   + T.square((X - mean) / T.exp(log_covar)))
+                   + log_covar
+                   + T.square(X - mean) / T.exp(log_covar))
+    inner = inner + T.log(weights)
+    return logsumexp(inner, axis=0)
+
+
+def mvn_log_std_weighted(X, weights):
+    inner = (-.5 * (T.log(2 * np.pi) + T.square(X)))
     inner = inner + T.log(weights)
     return logsumexp(inner, axis=0)
 
@@ -69,7 +76,7 @@ def bernoulli_logpmf(X, p):
     >>> np.allclose(bernoulli.logpmf(X, p).sum(axis=1), f(X, p))
     True
     """
-    return -T.nnet.binary_crossentropy(p, X).sum(axis=1)
+    return -T.nnet.binary_crossentropy(p, X).sum(axis=-1)
 
 
 def kl_mvn_log_mvn_std(mean, log_covar):
