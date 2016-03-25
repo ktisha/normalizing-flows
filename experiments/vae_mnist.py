@@ -12,13 +12,16 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
 from lasagne.nonlinearities import identity, sigmoid, tanh
 from lasagne.objectives import squared_error
 from lasagne.updates import adam
+from lasagne.init import Constant
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample
 from tomato.utils import mvn_log_logpdf, bernoulli_logpmf, kl_mvn_log_mvn_std, \
-    iter_minibatches, Stopwatch, Monitor
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf
 
+import numpy as np
+np.random.seed(42)
 
 class Params(namedtuple("Params", [
     "dataset", "batch_size", "num_epochs", "num_features",
@@ -41,25 +44,29 @@ class Params(namedtuple("Params", [
                    num_hidden, continuous=dc == "C")
 
 
-def build_model(p):
+def build_model(p, bias=Constant(0)):
     net = {}
     # q(z|x)
-    net["enc_input"] = InputLayer((None, p.num_features))
+    net["enc_input"] = InputLayer((p.batch_size, p.num_features))
     net["enc_hidden"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
+    net["enc_hidden"] = DenseLayer(net["enc_hidden"], num_units=p.num_hidden,
+                                   nonlinearity=tanh)
     net["z_mu"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
-                             nonlinearity=identity)
+                             nonlinearity=identity, W=Constant(0))
     net["z_log_covar"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
-                                    nonlinearity=identity)
+                                    nonlinearity=identity, W=Constant(0))
 
     net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
 
     # q(x|z)
     net["dec_hidden"] = DenseLayer(net["z"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
+    net["dec_hidden"] = DenseLayer(net["dec_hidden"], num_units=p.num_hidden,
+                                   nonlinearity=tanh)
 
     net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
-                             nonlinearity=sigmoid)
+                             nonlinearity=sigmoid, b=bias)
     if p.continuous:
         net["x_log_covar"] = DenseLayer(net["dec_hidden"],
                                         num_units=p.num_features,
@@ -71,10 +78,11 @@ def build_model(p):
     return net
 
 
-def elbo(X_var, net, p, **kwargs):
-    x_mu_var = get_output(net["x_mu"], X_var, **kwargs)
+def elbo(X_var, net, p, kl_analytic=False, **kwargs):
     z_mu_var = get_output(net["z_mu"], X_var, **kwargs)
     z_log_covar_var = get_output(net["z_log_covar"], X_var, **kwargs)
+    z_var = get_output(net["z"], X_var, **kwargs)
+    x_mu_var = get_output(net["x_mu"], X_var, **kwargs)
 
     if p.continuous:
         x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)
@@ -84,7 +92,10 @@ def elbo(X_var, net, p, **kwargs):
 
     # L(x) = E_q(z|x)[log p(x|z) + log p(z) - log q(z|x)]
     #      = E_q(z|x)[log p(x|z)] - KL[q(z|x)||p(z)]
-    return T.mean(log_px_z - kl_mvn_log_mvn_std(z_mu_var, z_log_covar_var))
+    if kl_analytic:
+        return T.mean(log_px_z - kl_mvn_log_mvn_std(z_mu_var, z_log_covar_var))
+    else:
+        return T.mean(log_px_z + mvn_std_logpdf(z_var) - mvn_log_logpdf(z_var, z_mu_var, z_log_covar_var))
 
 
 def load_model(path):
@@ -103,18 +114,22 @@ def fit_model(**kwargs):
 
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
-    net = build_model(p)
+    train_mean = np.mean(X_train, axis=0)
+    train_bias = -np.log(1. / np.clip(train_mean, 0.001, 0.999) - 1.)
+
+    net = build_model(p, train_bias)
 
     elbo_train = elbo(X_var, net, p, deterministic=False)
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params, learning_rate=1e-2)
-    train_nelbo = theano.function([X_var], -elbo_train, updates=updates)
-    val_nelbo = theano.function([X_var], -elbo_val)
+    updates = theano.gradient.grad(-elbo_train, params, disconnected_inputs="warn")
+    updates = adam(updates, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
+    train_nelbo = theano.function([X_var], elbo_train, updates=updates)
+    val_nelbo = theano.function([X_var], elbo_val)
 
     print("Starting training...")
-    monitor = Monitor(p.num_epochs)
+    monitor = Monitor(p.num_epochs, stop_early=False)
     sw = Stopwatch()
     while monitor:
         with sw:
@@ -153,9 +168,9 @@ if __name__ == "__main__":
 
     fit_parser = subparsers.add_parser("fit")
     fit_parser.add_argument("dataset", type=str)
-    fit_parser.add_argument("-L", dest="num_latent", type=int, default=100)
-    fit_parser.add_argument("-H", dest="num_hidden", type=int, default=500)
-    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
+    fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
+    fit_parser.add_argument("-H", dest="num_hidden", type=int, default=200)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=300)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
                             default=False)
