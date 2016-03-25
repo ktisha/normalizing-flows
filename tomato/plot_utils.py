@@ -77,21 +77,22 @@ def plot_components_mean_by_class(mus, covars, y_train, num_components):
     ax1 = None
     for y in set(y_train):
         mask = y_train == y
-        ax1 = plt.subplot(1, len(set(y_train)), y+1, sharex=ax1, sharey=ax1)
+        ax1 = plt.subplot(1, len(set(y_train)), y + 1, sharex=ax1, sharey=ax1)
         plt.title("Class " + str(y))
         for n_comp, c in enumerate(colors):
             x1 = np.random.multivariate_normal(np.mean(mus[n_comp][mask], axis=0),
-                                               np.diag(np.mean(covars[n_comp][mask],axis=0)), 1000)
+                                               np.diag(np.mean(covars[n_comp][mask], axis=0)), 1000)
             plt.scatter(x1[:, 0], x1[:, 1], c=c, label="comp " + str(n_comp))
 
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.show()
 
+
 def plot_components_mean_by_components(mus, covars, y_train, num_components):
     colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
     ax1 = None
     for n_comp in range(num_components):
-        ax1 = plt.subplot(1, num_components, n_comp+1, sharex=ax1, sharey=ax1)
+        ax1 = plt.subplot(1, num_components, n_comp + 1, sharex=ax1, sharey=ax1)
         plt.title("Component " + str(n_comp))
         for i, y in enumerate(set(y_train)):
             mask = y_train == y
@@ -102,12 +103,13 @@ def plot_components_mean_by_components(mus, covars, y_train, num_components):
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.show()
 
+
 def plot_mu_by_class(mus, y_train, num_components):
     colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
     colors = colors[:num_components]
     ax1 = None
     for y in set(y_train):
-        ax1 = plt.subplot(1, len(set(y_train)), y+1, sharex=ax1, sharey=ax1)
+        ax1 = plt.subplot(1, len(set(y_train)), y + 1, sharex=ax1, sharey=ax1)
         plt.title("Class " + str(y))
         for n_comp, c in enumerate(colors):
             mask = y_train == y
@@ -115,6 +117,7 @@ def plot_mu_by_class(mus, y_train, num_components):
 
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.show()
+
 
 def plot_mu_by_components(mus, y_train, num_components):
     colors = ['r', 'g', 'b', 'm', 'y', 'c', 'k', 'orange', 'lightgreen', 'lightblue']
