@@ -45,7 +45,7 @@ def mvn_log_logpdf(X, mean, log_covar):
 def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
     inner = -.5 * (T.log(2 * np.pi)
                    + log_covar
-                   + T.square(X - mean) / T.exp(log_covar))
+                   + T.square(X - mean) / T.exp(log_covar)).sum(axis=-1)
     inner = inner + T.log(weights)
     return logsumexp(inner, axis=0)
 
@@ -148,7 +148,7 @@ class Monitor:
 
     @property
     def best(self):
-        epoch = np.argmin(self.val_errs[-self.tolerance:])
+        epoch = np.argmax(self.val_errs[-self.tolerance:])
         print("Best achieved validation loss: {:.6f}"
               .format(self.val_errs[epoch]))
 

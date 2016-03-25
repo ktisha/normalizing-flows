@@ -18,13 +18,15 @@ from lasagne.updates import adam
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample, plot_full_histogram, plot_histogram_by_class, plot_mu_by_class, \
-    plot_mu_by_components
+    plot_mu_by_components, plot_components_mean_by_components
 from tomato.utils import mvn_log_logpdf, bernoulli_logpmf,  \
     iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted, bernoulli, mvn_logvar_pdf, \
     mvn_log_std_weighted
 
 theano.config.floatX = 'float64'
 
+# import numpy as np
+# np.random.seed(42)
 
 class Params(namedtuple("Params", [
     "dataset", "batch_size", "num_epochs", "num_features",
@@ -40,7 +42,7 @@ class Params(namedtuple("Params", [
     @classmethod
     def from_path(cls, path):
         [(dataset, *chunks, dc)] = re.findall(
-            r"vae_(\w+)_B(\d+)_E(\d+)_N(\d+)_L(\d+)_H(\d+)_N(\d+)_([DC])", str(path))
+            r"vae_mixture_(\w+)_B(\d+)_E(\d+)_N(\d+)_L(\d+)_H(\d+)_N(\d+)_([DC])", str(path))
         (batch_size, num_epochs,
          num_features, num_latent, num_hidden, num_components) = map(int, chunks)
         return cls(dataset, batch_size, num_epochs, num_features, num_latent,
@@ -131,34 +133,34 @@ def elbo_explicit(X_var, net, p, **kwargs):
 
 
 def elbo(X_var, net, p, **kwargs):
-    x_mu_var = get_output(net["x_mu"], X_var, **kwargs)  # (input, features)
-    if p.continuous:
-        x_log_covar_var = get_output(net["x_log_covar"], X_var, **kwargs)  # (input, features)
-        logpxz = mvn_log_logpdf(X_var, x_mu_var, x_log_covar_var)
-    else:
-        logpxz = bernoulli_logpmf(X_var, x_mu_var)
-
     z_mu_vars = T.stacklists(get_output(net["z_mus"], X_var, **kwargs))  # (n_components, batch_size, latent)
     z_log_covar_vars = T.stacklists(get_output(net["z_log_covars"], X_var, **kwargs))  # (n_components, batch_size, latent)
+
     z_vars = T.stacklists(get_output(net["zs"], X_var, **kwargs))  # (n_components, batch_size, latent)
+
     z_weight_vars = get_output(net["z_weights"], X_var, **kwargs).T  # (n_components, batch_size)
-    z_weight_vars = z_weight_vars[:, :, None]
+    id = np.identity(p.num_components)
 
-    logpz = mvn_log_std_weighted(z_vars, z_weight_vars).sum(axis=-1)
-
-    wqzs = []
+    logpxzs = []  # (n_comp, batch, features)
     for i in range(p.num_components):
-        qz = mvn_logvar_pdf(z_vars[i][None, :, :], z_mu_vars, z_log_covar_vars)
-        wqzs.append(T.sum(qz * z_weight_vars, axis=0))
+        weight_i = T.tile(id[i], (X_var.shape[0], 1))  # (batch, n_components)
+        x_mu_var = get_output(net["x_mu"], {net["enc_input"]: X_var,
+                                            net["z_weights"]: weight_i
+                                            }, **kwargs)  # (input, features)
+        logpxzs.append(bernoulli_logpmf(X_var, x_mu_var))
 
-    ww = T.stacklists(wqzs)
+    logpxz = T.stacklists(logpxzs)
 
-    logqzx = T.log(T.sum(ww * z_weight_vars, axis=0)).sum(axis=-1)
+    logpz = mvn_std_logpdf(z_vars)
+
+    logqzx = mvn_log_logpdf_weighted(z_vars, z_mu_vars, z_log_covar_vars, z_weight_vars)
+
+    logw = (logpxz + logpz - logqzx)
+
+    logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
 
     return T.mean(
-        logpxz
-        + logpz
-        - logqzx
+        logw
     )
 
 
@@ -219,7 +221,9 @@ def fit_model(**kwargs):
     elbo_val = elbo(X_var, net, p, deterministic=True)
 
     params = get_all_params(net["dec_output"], trainable=True)
-    updates = adam(-elbo_train, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
+
+    updates = theano.gradient.grad(-elbo_train, params, disconnected_inputs="warn")
+    updates = adam(updates, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
     train_nelbo = theano.function([X_var], elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], elbo_val)
     # validation_likelihood = theano.function([X_var], likelihood(X_var, net, p, 200))
@@ -274,7 +278,7 @@ if __name__ == "__main__":
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=200)
     fit_parser.add_argument("-E", dest="num_epochs", type=int, default=100)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
-    fit_parser.add_argument("-N", dest="num_components", type=int, default=10)
+    fit_parser.add_argument("-N", dest="num_components", type=int, default=2)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
                             default=False)
     fit_parser.set_defaults(command=fit_model)
@@ -295,7 +299,7 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
-    path = Path("vae_mixture_mnist_B500_E100_N784_L2_H200_N10_D.pickle")
+    path = Path("vae_mixture_mnist_B500_E100_N784_L2_H200_N2_D.pickle")
     net = load_model(path)
     p = Params.from_path(str(path))
     X_var = T.matrix()
@@ -315,3 +319,4 @@ if __name__ == "__main__":
     # plot_histogram_by_class(mus, covars, y_train, p.num_components)
     # plot_mu_by_class(mus, y_train, p.num_components)
     # plot_mu_by_components(mus, y_train, p.num_components)
+    # plot_components_mean_by_components(mus, covars, y_train, p.num_components)
