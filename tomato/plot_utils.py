@@ -174,3 +174,20 @@ def plot_full_histogram(mus, covars, num_components):
         plt.pcolormesh(xedges, yedges, Hmasked)
 
     plt.show()
+
+
+def plot_object_by_components(mus, covars, y_train, num_components):
+    ax1 = None
+    object_number = 1
+    mask = y_train == 1   # only first class
+    for n_comp in range(num_components):
+        ax1 = plt.subplot(1, num_components, n_comp + 1, sharex=ax1, sharey=ax1)
+        plt.title("Component " + str(n_comp))
+        musi = mus[n_comp][mask]
+        covarsi = covars[n_comp][mask]
+        x1 = np.random.multivariate_normal(musi[object_number],
+                                           np.diag(covarsi[object_number]), 1000)
+        plt.scatter(x1[:, 0], x1[:, 1])
+
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.show()
