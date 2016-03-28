@@ -18,14 +18,14 @@ from lasagne.updates import adam
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample, plot_full_histogram, plot_histogram_by_class, plot_mu_by_class, \
-    plot_mu_by_components, plot_components_mean_by_components
+    plot_mu_by_components, plot_components_mean_by_components, plot_object_by_components
 from tomato.utils import mvn_log_logpdf, bernoulli_logpmf,  \
     iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted, bernoulli, mvn_logvar_pdf, \
     mvn_log_std_weighted
 
 theano.config.floatX = 'float64'
 
-# import numpy as np
+import numpy as np
 # np.random.seed(42)
 
 class Params(namedtuple("Params", [
@@ -143,7 +143,7 @@ def elbo(X_var, net, p, **kwargs):
 
     logpxzs = []  # (n_comp, batch, features)
     for i in range(p.num_components):
-        weight_i = T.tile(id[i], (X_var.shape[0], 1))  # (batch, n_components)
+        weight_i = T.tile(id[i], (p.batch_size, 1))  # (batch, n_components)
         x_mu_var = get_output(net["x_mu"], {net["enc_input"]: X_var,
                                             net["z_weights"]: weight_i
                                             }, **kwargs)  # (input, features)
@@ -269,8 +269,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Learn VAE from data")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.required = True
-    import numpy as np
-    # np.random.seed(42)
 
     fit_parser = subparsers.add_parser("fit")
     fit_parser.add_argument("dataset", type=str)
@@ -304,19 +302,20 @@ if __name__ == "__main__":
     p = Params.from_path(str(path))
     X_var = T.matrix()
     X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
-    X_train = X_train[:10000]
-    y_train = y_train[:10000]
+    X_val = X_val[:10000]
+    y_val = y_val[:10000]
 
-    print_weights(X_var, X_train, y_train, net)
+    print_weights(X_var, X_val, y_val, net)
+
     z_mu_function = get_output(net["z_mus"], X_var, deterministic=True)
     z_log_function = get_output(net["z_log_covars"], X_var, deterministic=True)
     z_mu = theano.function([X_var], z_mu_function)
     z_covar = theano.function([X_var], z_log_function)
-    mus = z_mu(X_train)
-    covars = np.exp(z_covar(X_train))
+    mus = z_mu(X_val)
+    covars = np.exp(z_covar(X_val))
 
     # plot_full_histogram(mus, covars, p.num_components)
     # plot_histogram_by_class(mus, covars, y_train, p.num_components)
     # plot_mu_by_class(mus, y_train, p.num_components)
-    # plot_mu_by_components(mus, y_train, p.num_components)
-    # plot_components_mean_by_components(mus, covars, y_train, p.num_components)
+    # plot_mu_by_components(mus, y_val, p.num_components)
+    plot_object_by_components(mus, covars, y_val, p.num_components)
