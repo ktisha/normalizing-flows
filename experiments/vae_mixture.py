@@ -99,24 +99,25 @@ def build_gen_model(p, bias=Constant(0)):
 
 def elbo(X_var, gen_net, rec_net, p, **kwargs):
     z_mu_vars = T.stacklists(get_output(rec_net["z_mus"], X_var, **kwargs))  # (n_components, batch_size, latent)
-    z_log_covar_vars = T.stacklists(
-        get_output(rec_net["z_log_covars"], X_var, **kwargs))  # (n_components, batch_size, latent)
-    z_vars = T.stacklists(get_output(rec_net["zs"], X_var, **kwargs))  # (n_components, batch_size, latent)
-    z_weight_vars = get_output(rec_net["z_weights"], X_var, **kwargs).T  # (n_components, batch_size)
+    z_log_covar_vars = T.stacklists(get_output(rec_net["z_log_covars"], X_var, **kwargs))
+    z_vars = get_output(rec_net["zs"], X_var, **kwargs)        # (n_components, batch_size, latent)
+    z_weight_vars = get_output(rec_net["z_weights"], X_var, **kwargs).T      # (n_components, batch_size)
 
     logpxzs = []           # (n_comp, batch, features)
     for i in range(p.num_components):
-        x_mu_var = get_output(gen_net["x_mu"], z_vars[i], **kwargs)  # (input, features)
+        x_mu_var = get_output(gen_net["x_mu"], z_vars[i], **kwargs)  # (batch_size, features)
         logpxzs.append(bernoulli_logpmf(X_var, x_mu_var))
-
     logpxz = T.stacklists(logpxzs)
 
+    logqzxs = []
+    for i in range(p.num_components):
+        logqzxs.append(mvn_log_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
+    logqzx = T.stacklists(logqzxs)
+
+    z_vars = T.stacklists(z_vars)
     logpz = mvn_std_logpdf(z_vars)
 
-    logqzx = mvn_log_logpdf_weighted(z_vars, z_mu_vars, z_log_covar_vars, z_weight_vars)
-
     logw = (logpxz + logpz - logqzx)
-
     logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
 
     return T.mean(
@@ -128,11 +129,11 @@ def load_model(path):
     print("Building model and compiling functions...")
     rec_net = build_rec_model(Params.from_path(str(path)))
     gen_net = build_gen_model(Params.from_path(str(path)))
+    layers = rec_net["zs"]
+    layers.append(rec_net["z_weights"])
+    layers.append(gen_net["dec_output"])
     with path.open("rb") as handle:
-        param_values = pickle.load(handle)
-        set_all_param_values(rec_net["zs"], param_values[:-12])
-        set_all_param_values(rec_net["z_weights"], param_values[-12:-6])
-        set_all_param_values(gen_net["dec_output"], param_values[-6:])
+        set_all_param_values(layers, pickle.load(handle))
     return rec_net, gen_net
 
 
@@ -155,15 +156,16 @@ def fit_model(**kwargs):
     elbo_train = elbo(X_var, gen_net, rec_net, p, deterministic=False)
     elbo_val = elbo(X_var, gen_net, rec_net, p, deterministic=True)
 
-    params = get_all_params(rec_net["zs"], trainable=True)
-    params.extend(get_all_params(rec_net["z_weights"], trainable=True))
-    params.extend(get_all_params(gen_net["dec_output"], trainable=True))
+    layers = rec_net["zs"]
+    layers.append(rec_net["z_weights"])
+    layers.append(gen_net["dec_output"])
+    params = get_all_params(layers, trainable=True)
 
     updates = theano.gradient.grad(-elbo_train, params, disconnected_inputs="warn")
     updates = adam(updates, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
     train_nelbo = theano.function([X_var], elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], elbo_val)
-    # validation_likelihood = theano.function([X_var], likelihood(X_var, net, p, 200))
+
     print("Starting training...")
     monitor = Monitor(p.num_epochs, stop_early=False)
     sw = Stopwatch()
@@ -179,9 +181,7 @@ def fit_model(**kwargs):
                 val_err += val_nelbo(Xb)
                 val_batches += 1
 
-        snapshot = get_all_param_values(rec_net["zs"])
-        snapshot.extend(get_all_param_values(rec_net["z_weights"]))
-        snapshot.extend(get_all_param_values(gen_net["dec_output"]))
+        snapshot = get_all_param_values(layers)
 
         monitor.report(snapshot, sw, train_err / train_batches,
                        val_err / val_batches)
@@ -200,7 +200,7 @@ def print_weights(X_var, X_train, y_train, rec_net):
         X_vali = X_train[mask, :]
         weights = weights_func(X_vali)
         print("y " + str(y) + " len= " + str(weights.shape[0]))
-        print(weights)
+        # print(weights)
         w_max = np.max(weights, axis=1)
         print(np.isclose(w_max, np.ones(w_max.shape[0]), 0.01, 0.01).sum())
         print(Counter(np.argmax(weights, axis=1)))
