@@ -53,9 +53,9 @@ def build_model(p, bias=Constant(0)):
     net["enc_hidden"] = DenseLayer(net["enc_hidden"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
     net["z_mu"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
-                             nonlinearity=identity, W=Constant(0))
+                             nonlinearity=identity)
     net["z_log_covar"] = DenseLayer(net["enc_hidden"], num_units=p.num_latent,
-                                    nonlinearity=identity, W=Constant(0))
+                                    nonlinearity=identity)
 
     net["z"] = GaussianNoiseLayer(net["z_mu"], net["z_log_covar"])
 
