@@ -150,7 +150,7 @@ class Monitor:
     def best(self):
         epoch = np.argmax(self.val_errs[-self.tolerance:])
         print("Best achieved validation loss: {:.6f}"
-              .format(self.val_errs[epoch]))
+              .format(self.val_errs[-self.tolerance:][epoch]))
 
         return self.snapshots[epoch]
 
