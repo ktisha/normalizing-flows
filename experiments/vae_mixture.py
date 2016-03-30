@@ -55,9 +55,6 @@ def build_rec_model(p):
     net["enc_input"] = InputLayer((None, p.num_features))
     net["enc_hidden"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
-    net["enc_hidden"] = DenseLayer(net["enc_hidden"], num_units=p.num_hidden,
-                                   nonlinearity=tanh)
-
     net["z_weights"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
                                   nonlinearity=softmax, W=Constant(0))
 
@@ -80,8 +77,6 @@ def build_gen_model(p, bias=Constant(0)):
     # q(x|z)
     net["z"] = InputLayer((None, p.num_latent))
     net["dec_hidden"] = DenseLayer(net["z"], num_units=p.num_hidden,
-                                   nonlinearity=tanh)
-    net["dec_hidden"] = DenseLayer(net["dec_hidden"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
 
     net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
@@ -169,12 +164,20 @@ def fit_model(**kwargs):
     print("Starting training...")
     monitor = Monitor(p.num_epochs, stop_early=False)
     sw = Stopwatch()
+    x_weights = get_output(rec_net["z_weights"], X_var, deterministic=True)
+    weights_func = theano.function([X_var], x_weights)
+
     while monitor:
         with sw:
             train_err, train_batches = 0, 0
             for Xb in iter_minibatches(X_train, p.batch_size):
                 train_err += train_nelbo(Xb)
                 train_batches += 1
+
+            weights = weights_func(X_train)
+            w_max = np.max(weights, axis=1)
+            print(np.isclose(w_max, np.ones(w_max.shape[0]), 0.01, 0.01).sum())
+            print(Counter(np.argmax(weights, axis=1)))
 
             val_err, val_batches = 0, 0
             for Xb in iter_minibatches(X_val, p.batch_size):
@@ -215,7 +218,7 @@ if __name__ == "__main__":
     fit_parser.add_argument("dataset", type=str)
     fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=200)
-    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=2)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-N", dest="num_components", type=int, default=2)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
@@ -226,7 +229,7 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
-    # path = Path("vae_mixture_mnist_B500_E2_N784_L2_H200_N2_D.pickle")
+    # path = Path("vae_mixture_mnist_B200_E100_N784_L2_H200_N2_D.pickle")
     # rec_net, gen_net = load_model(path)
     # p = Params.from_path(str(path))
     # X_var = T.matrix()
@@ -235,7 +238,7 @@ if __name__ == "__main__":
     # y_val = y_val[:10000]
     #
     # print_weights(X_var, X_val, y_val, rec_net)
-
+    #
     # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=True)
     # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=True)
     # z_mu = theano.function([X_var], z_mu_function)

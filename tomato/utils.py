@@ -132,9 +132,6 @@ class Monitor:
         if self.epoch < self.tolerance:
             return True
 
-        if len(self.val_errs) > 2 and self.val_errs[-1] < self.train_errs[-1]:
-            return False
-
         if not self.stop_early:
             return True
 
