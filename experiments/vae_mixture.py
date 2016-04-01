@@ -120,6 +120,38 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
     )
 
 
+def likelihood(X_var, gen_net, rec_net, p, n_samples=2, **kwargs):
+    logw = []
+    for i in range(n_samples):
+        z_mu_vars = T.stacklists(get_output(rec_net["z_mus"], X_var, **kwargs))
+        z_log_covar_vars = T.stacklists(get_output(rec_net["z_log_covars"], X_var, **kwargs))
+        z_vars = get_output(rec_net["zs"], X_var, **kwargs)
+        z_weight_vars = get_output(rec_net["z_weights"], X_var, **kwargs).T
+
+        logqzxs = []
+        for i in range(p.num_components):
+            logqzxs.append(mvn_log_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
+        logqzx = T.stacklists(logqzxs)
+
+        z_vars = T.stacklists(z_vars)
+        logpz = mvn_std_logpdf(z_vars)
+
+        logpxzs = []  # (n_comp, batch, features)
+        for i in range(p.num_components):
+            x_mu_var = get_output(gen_net["x_mu"], z_vars[i], **kwargs)  # (batch_size, features)
+            logpxzs.append(bernoulli_logpmf(X_var, x_mu_var))
+        logpxz = T.stacklists(logpxzs)
+
+        logw.append(logpxz + logpz - logqzx)
+
+    logw = T.stacklists(logw)
+
+    max_w = T.max(logw, 0, keepdims=True)
+    adjusted_w = logw - max_w
+    ll = max_w + T.log(T.mean(T.exp(adjusted_w), 0, keepdims=True))
+    return T.mean(ll)
+
+
 def load_model(path):
     print("Building model and compiling functions...")
     rec_net = build_rec_model(Params.from_path(str(path)))
@@ -150,6 +182,7 @@ def fit_model(**kwargs):
 
     elbo_train = elbo(X_var, gen_net, rec_net, p, deterministic=False)
     elbo_val = elbo(X_var, gen_net, rec_net, p, deterministic=True)
+    likelihood_val = likelihood(X_var, gen_net, rec_net, p, 2, deterministic=True)
 
     layers = rec_net["zs"]
     layers.append(rec_net["z_weights"])
@@ -160,6 +193,7 @@ def fit_model(**kwargs):
     updates = adam(updates, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
     train_nelbo = theano.function([X_var], elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], elbo_val)
+    val_likelihood = theano.function([X_var], likelihood_val)
 
     print("Starting training...")
     monitor = Monitor(p.num_epochs, stop_early=False)
@@ -179,15 +213,16 @@ def fit_model(**kwargs):
             print(np.isclose(w_max, np.ones(w_max.shape[0]), 0.01, 0.01).sum())
             print(Counter(np.argmax(weights, axis=1)))
 
-            val_err, val_batches = 0, 0
+            val_err, val_batches, lhood = 0, 0, 0
             for Xb in iter_minibatches(X_val, p.batch_size):
                 val_err += val_nelbo(Xb)
+                lhood += val_likelihood(Xb)
                 val_batches += 1
 
         snapshot = get_all_param_values(layers)
 
         monitor.report(snapshot, sw, train_err / train_batches,
-                       val_err / val_batches)
+                       val_err / val_batches, lhood / val_batches)
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
