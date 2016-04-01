@@ -42,11 +42,12 @@ def mvn_log_logpdf(X, mean, log_covar):
                   + T.square(X - mean) / T.exp(log_covar)).sum(axis=-1)
 
 
-def mvn_log_logpdf_weighted(X, mean, log_covar, weights, eps=1e-10):
+def mvn_log_logpdf_weighted(X, mean, log_covar, weights, eps=1e-5):
     inner = -.5 * (T.log(2 * np.pi)
                    + log_covar
                    + T.square(X - mean) / T.exp(log_covar)).sum(axis=-1)
-    inner = inner + T.log(weights + eps) - T.log(-eps)
+    weights = T.clip(weights, eps, 1)
+    inner = inner + T.log(weights)
     return logsumexp(inner, axis=0)
 
 
