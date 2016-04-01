@@ -42,11 +42,11 @@ def mvn_log_logpdf(X, mean, log_covar):
                   + T.square(X - mean) / T.exp(log_covar)).sum(axis=-1)
 
 
-def mvn_log_logpdf_weighted(X, mean, log_covar, weights):
+def mvn_log_logpdf_weighted(X, mean, log_covar, weights, eps=1e-10):
     inner = -.5 * (T.log(2 * np.pi)
                    + log_covar
                    + T.square(X - mean) / T.exp(log_covar)).sum(axis=-1)
-    inner = inner + T.log(weights)
+    inner = inner + T.log(weights + eps) - T.log(-eps)
     return logsumexp(inner, axis=0)
 
 
@@ -167,7 +167,7 @@ class Monitor:
 
     def save(self, path):
         np.savetxt(str(path),
-                   np.column_stack([self.train_errs, self.val_errs]),
+                   np.column_stack([self.train_errs, self.val_errs, self.val_likelihood]),
                    delimiter=",")
         _plot_errors(path)
 
@@ -177,6 +177,8 @@ def _plot_errors(path):
     epochs = np.arange(len(errors) - 1)
     plt.plot(epochs, errors[1:, 0], "b-", label="Train")
     plt.plot(epochs, errors[1:, 1], "r-", label="Test")
+    if errors.shape[1] > 2:
+        plt.plot(epochs, errors[1:, 2], "g-", label="Test-likelihood")
     plt.ylabel("Error")
     plt.xlabel("Epoch")
     plt.legend(loc="best")
