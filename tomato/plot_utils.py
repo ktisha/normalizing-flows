@@ -5,6 +5,8 @@ from lasagne.layers import get_output
 from lasagne.utils import floatX as as_floatX
 from PIL import Image
 from scipy import stats
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
