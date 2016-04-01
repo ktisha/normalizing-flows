@@ -31,7 +31,7 @@ def load_mnist_dataset(continuous, returnLabels=False):
         if continuous:
             return data
         else:
-            return np.random.binomial(n=1, p=data, size=data.shape)
+            return np.random.binomial(n=1, p=data, size=data.shape).astype(np.float32)
             # return np.where(data <= 127, as_floatX(0), as_floatX(1))
 
     def load_mnist_labels(path):

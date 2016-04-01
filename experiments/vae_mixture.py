@@ -23,7 +23,7 @@ from tomato.utils import mvn_log_logpdf, bernoulli_logpmf,  \
     iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted, bernoulli, mvn_logvar_pdf, \
     mvn_log_std_weighted
 
-theano.config.floatX = 'float64'
+theano.config.floatX = 'float32'
 
 import numpy as np
 # np.random.seed(42)
