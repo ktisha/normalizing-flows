@@ -120,13 +120,13 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
     )
 
 
-def likelihood(X_var, gen_net, rec_net, p, n_samples=2, **kwargs):
+def likelihood(X_var, gen_net, rec_net, p, n_samples=200, **kwargs):
     logw = []
+    z_weight_vars = get_output(rec_net["z_weights"], X_var, **kwargs).T
     for i in range(n_samples):
         z_mu_vars = T.stacklists(get_output(rec_net["z_mus"], X_var, **kwargs))
         z_log_covar_vars = T.stacklists(get_output(rec_net["z_log_covars"], X_var, **kwargs))
         z_vars = get_output(rec_net["zs"], X_var, **kwargs)
-        z_weight_vars = get_output(rec_net["z_weights"], X_var, **kwargs).T
 
         logqzxs = []
         for i in range(p.num_components):
@@ -142,10 +142,11 @@ def likelihood(X_var, gen_net, rec_net, p, n_samples=2, **kwargs):
             logpxzs.append(bernoulli_logpmf(X_var, x_mu_var))
         logpxz = T.stacklists(logpxzs)
 
-        logw.append(logpxz + logpz - logqzx)
+        ll = logpxz + logpz - logqzx
+        logw.append(ll)
 
     logw = T.stacklists(logw)
-
+    logw = T.sum(T.mul(logw, z_weight_vars), axis=1)
     max_w = T.max(logw, 0, keepdims=True)
     adjusted_w = logw - max_w
     ll = max_w + T.log(T.mean(T.exp(adjusted_w), 0, keepdims=True))
@@ -182,7 +183,7 @@ def fit_model(**kwargs):
 
     elbo_train = elbo(X_var, gen_net, rec_net, p, deterministic=False)
     elbo_val = elbo(X_var, gen_net, rec_net, p, deterministic=True)
-    likelihood_val = likelihood(X_var, gen_net, rec_net, p, 2, deterministic=True)
+    likelihood_val = likelihood(X_var, gen_net, rec_net, p, 100, deterministic=False)
 
     layers = rec_net["zs"]
     layers.append(rec_net["z_weights"])
