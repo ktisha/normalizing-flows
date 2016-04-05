@@ -5,13 +5,42 @@ from urllib.request import urlretrieve
 import numpy as np
 from lasagne.utils import floatX as as_floatX
 from scipy.io import loadmat
-
+import pickle
 
 # Absolute path to the data directory.
 DATA_ROOT = Path(__file__).parent / "data"
 
 if not DATA_ROOT.exists():
     DATA_ROOT.mkdir(parents=True)
+
+
+def load_mnist_binarized():
+    dataset = 'mnist.pkl.gz'
+    datasetfolder = DATA_ROOT / 'mnist_binarized'
+
+    def download(datapath):
+        datafiles = {
+            "train": "http://www.cs.toronto.edu/~larocheh/public/datasets/binarized_mnist/binarized_mnist_train.amat",
+            "valid": "http://www.cs.toronto.edu/~larocheh/public/datasets/binarized_mnist/binarized_mnist_valid.amat",
+            "test": "http://www.cs.toronto.edu/~larocheh/public/datasets/binarized_mnist/binarized_mnist_test.amat"
+        }
+        datasplits = {}
+        for split in datafiles.keys():
+            print("Downloading %s data..." % split)
+            datasplits[split] = np.loadtxt(urlretrieve(datafiles[split])[0])
+
+        f = gzip.open(str(datapath / dataset), 'w')
+        pickle.dump([datasplits['train'], datasplits['valid'], datasplits['test']], f)
+
+    if not datasetfolder.exists():
+        datasetfolder.mkdir(parents=True)
+
+    if not (datasetfolder / dataset).exists():
+        download(datasetfolder)
+
+    with gzip.open(str(datasetfolder / dataset), 'rb') as f:
+        X_train, X_val, X_test = pickle.load(f)
+    return X_train.astype(np.float32), X_val.astype(np.float32)
 
 
 def load_mnist_dataset(continuous, returnLabels=False):
@@ -25,7 +54,7 @@ def load_mnist_dataset(continuous, returnLabels=False):
 
         with gzip.open(str(path)) as handle:
             data = (np.frombuffer(handle.read(), np.uint8, offset=16)
-                 .reshape(-1, 28 * 28))
+                    .reshape(-1, 28 * 28))
 
         data = data / as_floatX(255)  # Convert to [0, 1).
         if continuous:
@@ -75,6 +104,8 @@ def load_frey_dataset(continuous):
 def load_dataset(name, continuous, returnLabels=False):
     if name == "mnist":
         return load_mnist_dataset(continuous, returnLabels)
+    elif name == "mnist_bin":
+        return load_mnist_binarized()
     elif name == "frey":
         return load_frey_dataset(continuous)
     else:
