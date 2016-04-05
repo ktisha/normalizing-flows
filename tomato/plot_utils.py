@@ -1,10 +1,13 @@
+import os
+
 import numpy as np
 import theano
 import theano.tensor as T
+from PIL import Image
 from lasagne.layers import get_output
 from lasagne.utils import floatX as as_floatX
-from PIL import Image
 from scipy import stats
+
 # import matplotlib
 # matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -226,6 +229,47 @@ def plot_object_info(mus, covars, X_val, y_train, weights, num_components):
             plt.scatter(x1[:, 0], x1[:, 1])
 
         plt.savefig("MNIST_" + str(class_n) + "0.png")
+        plt.clf()
+
+
+def plot_object_info_by_component(mus, covars, X_val, y_train, weights, num_components):
+    class_n = 0
+    comp_n = 0
+    folder_name = str(class_n) + "/" + str(comp_n)
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+    ax1 = None
+    mask = y_train == class_n
+    plt.figure(figsize=(15, 6))
+    mm = np.argmax(weights[mask], 1) == comp_n
+    object_numbers = np.where(mm > 0)[0][:20]
+    print(object_numbers)
+    for i in range(len(object_numbers)):
+        object_number = object_numbers[i]
+        x = X_val[mask][object_number]
+        weight_x = weights[mask][object_number]
+        x = np.invert(x.reshape(28, -1).astype(np.uint8))
+        xx = Image.fromarray(x)
+
+        ax = plt.subplot(1, num_components + 1, 1)
+        plt.imshow(xx, cmap='Greys_r')
+        ax.text(0, -15, "Comp 0 = " + str(weight_x[0]))
+        ax.text(0, -10, "Comp 1 = " + str(weight_x[1]))
+        ax.text(0, -5, "Comp 2 = " + str(weight_x[2]))
+
+        for n_comp in range(num_components):
+            ax1 = plt.subplot(1, num_components+1, n_comp + 2, sharex=ax1, sharey=ax1)
+            plt.xticks(np.arange(-2, 2, 1.0))
+            plt.ylim([-3, 3])
+            plt.xlim([-3, 3])
+            plt.title("Component " + str(n_comp))
+            musi = mus[n_comp][mask]
+            covarsi = covars[n_comp][mask]
+            x1 = np.random.multivariate_normal(musi[object_number],
+                                               np.diag(covarsi[object_number]), 1000)
+            plt.scatter(x1[:, 0], x1[:, 1])
+
+        plt.savefig(folder_name + "/MNIST_" + str(object_number) + ".png")
         plt.clf()
 
 
