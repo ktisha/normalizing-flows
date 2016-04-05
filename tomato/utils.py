@@ -136,12 +136,13 @@ class Monitor:
         if not self.stop_early:
             return True
 
-        mean_val_err = np.mean(self.val_errs[-self.tolerance:])
+        my_range = self.val_likelihood if self.val_likelihood else self.val_errs
+        mean_val_err = np.mean(my_range[-self.tolerance:])
         eps = 1 + np.sign(mean_val_err) * 0.5
-        good_to_go = self.val_errs[-1] < mean_val_err * eps
+        good_to_go = my_range[-1] < mean_val_err * eps
         if not good_to_go:
             print("Stopped early: {} > {}"
-                  .format(self.val_errs[-1],  mean_val_err))
+                  .format(my_range[-1],  mean_val_err))
         return bool(good_to_go)
 
     @property
