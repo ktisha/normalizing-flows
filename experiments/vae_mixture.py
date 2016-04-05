@@ -118,6 +118,7 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
         logw
     )
 
+
 def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
     X_vars = T.tile(X_var, [n_samples, 1, 1])    # (n_samples, batch, features)
     s = T.shape(X_vars)
@@ -179,7 +180,7 @@ def train_model(X_train, X_val, p, train_bias):
 
     elbo_train = elbo(X_var, gen_net, rec_net, p, deterministic=False)
     elbo_val = elbo(X_var, gen_net, rec_net, p, deterministic=True)
-    likelihood_val = likelihood(X_var, gen_net, rec_net, p, 300, deterministic=False)
+    likelihood_val = likelihood(X_var, gen_net, rec_net, p, 3000/p.num_components, deterministic=False)
 
     layers = rec_net["zs"]
     layers.append(rec_net["z_weights"])
