@@ -120,6 +120,7 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
 
 
 def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
+    n_samples = int(n_samples)
     X_vars = T.tile(X_var, [n_samples, 1, 1])    # (n_samples, batch, features)
     s = T.shape(X_vars)
     X_vars = T.reshape(X_vars, [s[0] * s[1], s[2]])
