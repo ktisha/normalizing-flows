@@ -19,9 +19,8 @@ from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample, plot_full_histogram, plot_histogram_by_class, plot_mu_by_class, \
     plot_mu_by_components, plot_components_mean_by_components, plot_object_by_components
-from tomato.utils import mvn_log_logpdf, bernoulli_logpmf,  \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted, bernoulli, mvn_logvar_pdf, \
-    mvn_log_std_weighted
+from tomato.utils import bernoulli_logpmf, \
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted
 
 theano.config.floatX = 'float32'
 
@@ -119,34 +118,40 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
         logw
     )
 
+def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
+    X_vars = T.tile(X_var, [n_samples, 1, 1])    # (n_samples, batch, features)
+    s = T.shape(X_vars)
+    X_vars = T.reshape(X_vars, [s[0] * s[1], s[2]])
 
-def likelihood(X_var, gen_net, rec_net, p, n_samples=200, **kwargs):
-    logw = []
-    z_weight_vars = get_output(rec_net["z_weights"], X_var, **kwargs).T
-    for i in range(n_samples):
-        z_mu_vars = T.stacklists(get_output(rec_net["z_mus"], X_var, **kwargs))
-        z_log_covar_vars = T.stacklists(get_output(rec_net["z_log_covars"], X_var, **kwargs))
-        z_vars = get_output(rec_net["zs"], X_var, **kwargs)
+    z_mu_vars = T.stacklists(get_output(rec_net["z_mus"], X_vars, **kwargs))  # (n_components, n_samples x batch_size, latent)
+    z_log_covar_vars = T.stacklists(get_output(rec_net["z_log_covars"], X_vars, **kwargs))
+    z_vars = get_output(rec_net["zs"], X_vars, **kwargs)
+    z_vars = T.stacklists(z_vars)         # (n_components, n_samples x batch_size, latent)
 
-        logqzxs = []
-        for i in range(p.num_components):
-            logqzxs.append(mvn_log_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
-        logqzx = T.stacklists(logqzxs)
+    z_weight_vars = get_output(rec_net["z_weights"], X_vars, **kwargs).T  # (n_components, n_samples x batch_size)
 
-        z_vars = T.stacklists(z_vars)
-        logpz = mvn_std_logpdf(z_vars)
 
-        logpxzs = []  # (n_comp, batch, features)
-        for i in range(p.num_components):
-            x_mu_var = get_output(gen_net["x_mu"], z_vars[i], **kwargs)  # (batch_size, features)
-            logpxzs.append(bernoulli_logpmf(X_var, x_mu_var))
-        logpxz = T.stacklists(logpxzs)
+    logpxzs = []  # (n_comp, n_samples, batch)
+    for i in range(p.num_components):
+        x_mu_var = get_output(gen_net["x_mu"], z_vars[i], **kwargs)  # (n_samples x batch_size, features)
+        x_mu_var = T.reshape(x_mu_var, [n_samples, p.batch_size, p.num_features])
+        logpxzs.append(bernoulli_logpmf(X_var, x_mu_var))
+    logpxz = T.stacklists(logpxzs)
 
-        ll = logpxz + logpz - logqzx
-        logw.append(ll)
+    logqzxs = []
+    for i in range(p.num_components):
+        logqzxs.append(mvn_log_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
+    logqzx = T.stacklists(logqzxs)
+    logqzx = T.reshape(logqzx, [p.num_components, n_samples, p.batch_size])
 
-    logw = T.stacklists(logw)
-    logw = T.sum(T.mul(logw, z_weight_vars), axis=1)
+    z_vars = T.stacklists(z_vars)
+    logpz = mvn_std_logpdf(z_vars)
+    logpz = T.reshape(logpz, [p.num_components, n_samples, p.batch_size])
+
+    logw = (logpxz + logpz - logqzx)  # (n_comp, n_samples, batch)
+    z_weight_vars = T.reshape(z_weight_vars, [p.num_components, n_samples, p.batch_size])
+    logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
+
     max_w = T.max(logw, 0, keepdims=True)
     adjusted_w = logw - max_w
     ll = max_w + T.log(T.mean(T.exp(adjusted_w), 0, keepdims=True))
@@ -183,7 +188,7 @@ def fit_model(**kwargs):
 
     elbo_train = elbo(X_var, gen_net, rec_net, p, deterministic=False)
     elbo_val = elbo(X_var, gen_net, rec_net, p, deterministic=True)
-    likelihood_val = likelihood(X_var, gen_net, rec_net, p, 100, deterministic=False)
+    likelihood_val = likelihood(X_var, gen_net, rec_net, p, 300, deterministic=False)
 
     layers = rec_net["zs"]
     layers.append(rec_net["z_weights"])
@@ -212,8 +217,10 @@ def fit_model(**kwargs):
             weights = weights_func(X_train)
             w_max = np.max(weights, axis=1)
             print(np.isclose(w_max, np.ones(w_max.shape[0]), 0.01, 0.01).sum())
-            print(Counter(np.argmax(weights, axis=1)))
-
+            counter = Counter(np.argmax(weights, axis=1))
+            print(counter)
+            if len(counter) < p.num_components and monitor.epoch == 0:
+                return False
             val_err, val_batches, lhood = 0, 0, 0
             for Xb in iter_minibatches(X_val, p.batch_size):
                 val_err += val_nelbo(Xb)
@@ -229,6 +236,7 @@ def fit_model(**kwargs):
     monitor.save(path.with_suffix(".csv"))
     with path.with_suffix(".pickle").open("wb") as handle:
         pickle.dump(monitor.best, handle)
+    return True
 
 
 def print_weights(X_var, X_train, y_train, rec_net):
@@ -263,27 +271,30 @@ if __name__ == "__main__":
 
     args = vars(parser.parse_args())
     command = args.pop("command")
-    command(**args)
+    #command(**args)
 
-    # path = Path("vae_mixture_mnist_B200_E100_N784_L2_H200_N2_D.pickle")
-    # rec_net, gen_net = load_model(path)
-    # p = Params.from_path(str(path))
-    # X_var = T.matrix()
-    # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
-    # X_val = X_val[:10000]
-    # y_val = y_val[:10000]
-    #
-    # print_weights(X_var, X_val, y_val, rec_net)
-    #
-    # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=True)
-    # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=True)
-    # z_mu = theano.function([X_var], z_mu_function)
-    # z_covar = theano.function([X_var], z_log_function)
-    # mus = z_mu(X_val)
-    # covars = np.exp(z_covar(X_val))
+    s = False
+    while not s:
+        s = fit_model(**args)
+        # path = Path("vae_mixture_mnist_B200_E100_N784_L2_H200_N2_D.pickle")
+        # rec_net, gen_net = load_model(path)
+        # p = Params.from_path(str(path))
+        # X_var = T.matrix()
+        # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
+        # X_val = X_val[:10000]
+        # y_val = y_val[:10000]
+        #
+        # print_weights(X_var, X_val, y_val, rec_net)
+        #
+        # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=True)
+        # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=True)
+        # z_mu = theano.function([X_var], z_mu_function)
+        # z_covar = theano.function([X_var], z_log_function)
+        # mus = z_mu(X_val)
+        # covars = np.exp(z_covar(X_val))
 
-    # plot_full_histogram(mus, covars, p.num_components)
-    # plot_histogram_by_class(mus, covars, y_train, p.num_components)
-    # plot_mu_by_class(mus, y_train, p.num_components)
-    # plot_mu_by_components(mus, y_val, p.num_components)
-    # plot_object_by_components(mus, covars, y_val, p.num_components)
+        # plot_full_histogram(mus, covars, p.num_components)
+        # plot_histogram_by_class(mus, covars, y_train, p.num_components)
+        # plot_mu_by_class(mus, y_train, p.num_components)
+        # plot_mu_by_components(mus, y_val, p.num_components)
+        # plot_object_by_components(mus, covars, y_val, p.num_components)
