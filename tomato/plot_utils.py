@@ -5,8 +5,8 @@ from lasagne.layers import get_output
 from lasagne.utils import floatX as as_floatX
 from PIL import Image
 from scipy import stats
-import matplotlib
-matplotlib.use("Agg")
+# import matplotlib
+# matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
@@ -193,3 +193,52 @@ def plot_object_by_components(mus, covars, y_train, num_components):
 
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.show()
+
+
+def plot_object_info(mus, covars, X_val, y_train, weights, num_components):
+    for class_n in range(10):
+        ax1 = None
+        object_number = 0
+        mask = y_train == class_n
+        plt.figure(figsize=(15, 6))
+
+        x = X_val[mask][object_number]
+        weight_x = weights[mask][object_number]
+        x = np.invert(x.reshape(28, -1).astype(np.uint8))
+        xx = Image.fromarray(x)
+
+        ax = plt.subplot(1, num_components + 1, 1)
+        plt.imshow(xx, cmap='Greys_r')
+        ax.text(0, -15, "Comp 0 = " + str(weight_x[0]))
+        ax.text(0, -10, "Comp 1 = " + str(weight_x[1]))
+        ax.text(0, -5, "Comp 2 = " + str(weight_x[2]))
+
+        for n_comp in range(num_components):
+            ax1 = plt.subplot(1, num_components+1, n_comp + 2, sharex=ax1, sharey=ax1)
+            plt.xticks(np.arange(-2, 2, 1.0))
+            plt.ylim([-2, 2])
+            plt.xlim([-2, 2])
+            plt.title("Component " + str(n_comp))
+            musi = mus[n_comp][mask]
+            covarsi = covars[n_comp][mask]
+            x1 = np.random.multivariate_normal(musi[object_number],
+                                               np.diag(covarsi[object_number]), 1000)
+            plt.scatter(x1[:, 0], x1[:, 1])
+
+        plt.savefig("MNIST_" + str(class_n) + "0.png")
+        plt.clf()
+
+
+def plot_likelihood(path1, path2, path3):
+    errors1 = np.genfromtxt(str(path1), delimiter=',')
+    errors2 = np.genfromtxt(str(path2), delimiter=',')
+    errors3 = np.genfromtxt(str(path3), delimiter=',')
+    epochs = np.arange(len(errors1) - 1)
+    plt.plot(epochs, errors1[1:, 2], "b-", label="Validation N 1")
+    plt.plot(epochs, errors2[1:, 2], "g-", label="Validation N 2")
+    plt.plot(epochs, errors3[1:, 2], "r-", label="Validation N 3")
+    plt.ylabel("Error")
+    plt.xlabel("Epoch")
+    plt.legend(loc="best")
+    plt.savefig("validation_errors.png")
+

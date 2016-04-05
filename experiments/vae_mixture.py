@@ -18,7 +18,7 @@ from lasagne.updates import adam
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_manifold, plot_sample, plot_full_histogram, plot_histogram_by_class, plot_mu_by_class, \
-    plot_mu_by_components, plot_components_mean_by_components, plot_object_by_components
+    plot_mu_by_components, plot_components_mean_by_components, plot_object_by_components, plot_object_info
 from tomato.utils import bernoulli_logpmf, \
     iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted
 
@@ -273,28 +273,33 @@ if __name__ == "__main__":
     command = args.pop("command")
     #command(**args)
 
-    s = False
-    while not s:
-        s = fit_model(**args)
-        # path = Path("vae_mixture_mnist_B200_E100_N784_L2_H200_N2_D.pickle")
-        # rec_net, gen_net = load_model(path)
-        # p = Params.from_path(str(path))
-        # X_var = T.matrix()
-        # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
-        # X_val = X_val[:10000]
-        # y_val = y_val[:10000]
-        #
-        # print_weights(X_var, X_val, y_val, rec_net)
-        #
-        # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=True)
-        # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=True)
-        # z_mu = theano.function([X_var], z_mu_function)
-        # z_covar = theano.function([X_var], z_log_function)
-        # mus = z_mu(X_val)
-        # covars = np.exp(z_covar(X_val))
+    # s = False
+    # while not s:
+    #     s = fit_model(**args)
 
-        # plot_full_histogram(mus, covars, p.num_components)
-        # plot_histogram_by_class(mus, covars, y_train, p.num_components)
-        # plot_mu_by_class(mus, y_train, p.num_components)
-        # plot_mu_by_components(mus, y_val, p.num_components)
-        # plot_object_by_components(mus, covars, y_val, p.num_components)
+    path = Path("apr5/vae_mixture_mnist_B500_E500_N784_L2_H200_N3_D.pickle")
+    rec_net, gen_net = load_model(path)
+    p = Params.from_path(str(path))
+    X_var = T.matrix()
+    X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
+    X_val = X_val[:10000]
+    y_val = y_val[:10000]
+
+    z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=True)
+    z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=True)
+    x_weights = get_output(rec_net["z_weights"], X_var, deterministic=True)
+
+    z_mu = theano.function([X_var], z_mu_function)
+    z_covar = theano.function([X_var], z_log_function)
+    weights_func = theano.function([X_var], x_weights)
+
+    mus = z_mu(X_val)
+    covars = np.exp(z_covar(X_val))
+    weights = weights_func(X_val)
+
+    # plot_full_histogram(mus, covars, p.num_components)
+    # plot_histogram_by_class(mus, covars, y_val, p.num_components)
+    # plot_mu_by_class(mus, y_val, p.num_components)
+    # plot_mu_by_components(mus, y_val, p.num_components)
+
+    plot_object_info(mus, covars, X_val, y_val, weights, p.num_components)
