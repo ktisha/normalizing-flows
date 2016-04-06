@@ -233,8 +233,8 @@ def plot_object_info(mus, covars, X_val, y_train, weights, num_components):
 
 
 def plot_object_info_by_component(mus, covars, X_val, y_train, weights, num_components):
-    class_n = 0
-    comp_n = 0
+    class_n = 1
+    comp_n = 1
     folder_name = str(class_n) + "/" + str(comp_n)
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
@@ -252,6 +252,7 @@ def plot_object_info_by_component(mus, covars, X_val, y_train, weights, num_comp
         xx = Image.fromarray(x)
 
         ax = plt.subplot(1, num_components + 1, 1)
+        plt.axis('off')
         plt.imshow(xx, cmap='Greys_r')
         ax.text(0, -15, "Comp 0 = " + str(weight_x[0]))
         ax.text(0, -10, "Comp 1 = " + str(weight_x[1]))
@@ -273,14 +274,56 @@ def plot_object_info_by_component(mus, covars, X_val, y_train, weights, num_comp
         plt.clf()
 
 
+def plot_object_info_by_component_in_one(mus, covars, X_val, y_train, weights, num_components):
+    class_n = 0
+    comp_n = 0
+    ax1 = None
+    mask = y_train == class_n
+    plt.figure(figsize=(15, 6))
+    ii = 1
+
+    mm = np.argmax(weights[mask], 1) == comp_n
+
+    object_numbers = np.where(mm)[0][:5]
+    print(weights[mask][object_numbers])
+    print(object_numbers)
+
+    for i in range(len(object_numbers)):
+        object_number = object_numbers[i]
+        x = X_val[mask][object_number]
+        x = np.invert(x.reshape(28, -1).astype(np.uint8))
+        xx = Image.fromarray(x)
+
+        ax = plt.subplot(5, num_components+1, ii)
+        ii += 1
+        plt.imshow(xx, cmap='Greys_r')
+        plt.axis('off')
+
+        for n_comp in range(num_components):
+            ax1 = plt.subplot(5, num_components+1, ii, sharex=ax1, sharey=ax1)
+            plt.xticks(np.arange(-2, 2, 1.0))
+            plt.ylim([-3, 3])
+            plt.xlim([-3, 3])
+            plt.title("Component " + str(n_comp))
+            musi = mus[n_comp][mask]
+            covarsi = covars[n_comp][mask]
+            x1 = np.random.multivariate_normal(musi[object_number],
+                                               np.diag(covarsi[object_number]), 1000)
+            plt.scatter(x1[:, 0], x1[:, 1])
+            ii += 1
+
+    plt.show()
+    # plt.savefig("MNIST_" + ".png")
+    # plt.clf()
+
 def plot_likelihood(path1, path2, path3):
     errors1 = np.genfromtxt(str(path1), delimiter=',')
     errors2 = np.genfromtxt(str(path2), delimiter=',')
     errors3 = np.genfromtxt(str(path3), delimiter=',')
     epochs = np.arange(len(errors1) - 1)
-    plt.plot(epochs, errors1[1:, 2], "b-", label="Validation N 1")
-    plt.plot(epochs, errors2[1:, 2], "g-", label="Validation N 2")
-    plt.plot(epochs, errors3[1:, 2], "r-", label="Validation N 3")
+    plt.plot(epochs, errors1[1:, 2], "b-", label="Validation K 1")
+    plt.plot(epochs, errors2[1:, 2], "g-", label="Validation K 2")
+    plt.plot(epochs, errors3[1:, 2], "r-", label="Validation K 3")
     plt.ylabel("Error")
     plt.xlabel("Epoch")
     plt.legend(loc="best")
