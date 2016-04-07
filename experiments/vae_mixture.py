@@ -13,7 +13,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
 from lasagne.nonlinearities import identity, tanh, softmax, sigmoid
 
 from lasagne.updates import adam
-
+from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
@@ -175,13 +175,15 @@ def load_model(path):
 def train_model(X_train, X_val, p, train_bias):
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
+    srng = MRG_RandomStreams(seed=123)
+    X_bin = T.cast(T.le(srng.uniform(T.shape(X_var)), X_var), 'float32')
 
     rec_net = build_rec_model(p)
     gen_net = build_gen_model(p, train_bias)
 
-    elbo_train = elbo(X_var, gen_net, rec_net, p, deterministic=False)
-    elbo_val = elbo(X_var, gen_net, rec_net, p, deterministic=True)
-    likelihood_val = likelihood(X_var, gen_net, rec_net, p, 3000/p.num_components, deterministic=False)
+    elbo_train = elbo(X_bin, gen_net, rec_net, p, deterministic=False)
+    elbo_val = elbo(X_bin, gen_net, rec_net, p, deterministic=True)
+    likelihood_val = likelihood(X_bin, gen_net, rec_net, p, 3000/p.num_components, deterministic=False)
 
     layers = rec_net["zs"]
     layers.append(rec_net["z_weights"])
@@ -197,7 +199,7 @@ def train_model(X_train, X_val, p, train_bias):
     print("Starting training...")
     monitor = Monitor(p.num_epochs, stop_early=True)
     sw = Stopwatch()
-    x_weights = get_output(rec_net["z_weights"], X_var, deterministic=True)
+    x_weights = get_output(rec_net["z_weights"], X_bin, deterministic=True)
     weights_func = theano.function([X_var], x_weights)
 
     while monitor:
