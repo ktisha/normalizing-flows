@@ -4,8 +4,8 @@ from lasagne.init import Normal
 from lasagne.layers import Layer, MergeLayer
 from lasagne.random import get_rng
 from theano.sandbox.rng_mrg import MRG_RandomStreams
-from theano.tensor.shared_randomstreams import RandomStreams
 from theano.tensor.nnet import softplus
+from theano.tensor.shared_randomstreams import RandomStreams
 
 
 class PlanarFlowLayer(Layer):
@@ -64,7 +64,7 @@ class GaussianNoiseLayer(MergeLayer):
             return mu
         else:
             eps = self._srng.normal(mu.shape)
-            return mu + T.exp(0.5*log_covar) * eps
+            return mu + T.exp(log_covar) * eps
 
 
 class IndexLayer(Layer):
