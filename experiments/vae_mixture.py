@@ -11,14 +11,11 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     get_all_params, get_all_param_values, set_all_param_values, \
     concat
 from lasagne.nonlinearities import identity, tanh, softmax, sigmoid
-
 from lasagne.updates import adam
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
-from tomato.plot_utils import plot_manifold, plot_sample, plot_full_histogram, plot_histogram_by_class, plot_mu_by_class, \
-    plot_mu_by_components, plot_components_mean_by_components, plot_object_by_components, plot_object_info
 from tomato.utils import bernoulli_logpmf, \
     iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted
 
@@ -164,7 +161,8 @@ def load_model(path):
     print("Building model and compiling functions...")
     rec_net = build_rec_model(Params.from_path(str(path)))
     gen_net = build_gen_model(Params.from_path(str(path)))
-    layers = rec_net["zs"]
+    layers = []
+    layers.extend(rec_net["zs"])
     layers.append(rec_net["z_weights"])
     layers.append(gen_net["dec_output"])
     with path.open("rb") as handle:
