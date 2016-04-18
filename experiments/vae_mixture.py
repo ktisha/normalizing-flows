@@ -51,6 +51,8 @@ def build_rec_model(p):
     net["enc_input"] = InputLayer((None, p.num_features))
     net["enc_hidden"] = DenseLayer(net["enc_input"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
+    net["enc_hidden"] = DenseLayer(net["enc_hidden"], num_units=p.num_hidden,
+                                   nonlinearity=tanh)
     net["z_weights"] = DenseLayer(net["enc_hidden"], num_units=p.num_components,
                                   nonlinearity=softmax, W=Constant(0))
 
@@ -73,6 +75,8 @@ def build_gen_model(p, bias=Constant(0)):
     # q(x|z)
     net["z"] = InputLayer((None, p.num_latent))
     net["dec_hidden"] = DenseLayer(net["z"], num_units=p.num_hidden,
+                                   nonlinearity=tanh)
+    net["dec_hidden"] = DenseLayer(net["dec_hidden"], num_units=p.num_hidden,
                                    nonlinearity=tanh)
 
     net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
