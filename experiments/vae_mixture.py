@@ -221,11 +221,13 @@ def train_model(X_train, X_val, p, train_bias):
             print(counter)
             if len(counter) < p.num_components and monitor.epoch == 0:
                 return False
-            val_err, val_batches, lhood = 0, 0, 0
-            for Xb in iter_minibatches(X_val, p.batch_size):
-                val_err += val_nelbo(Xb)
-                lhood += val_likelihood(Xb)
-                val_batches += 1
+
+            if monitor.epoch % 100 == 0:
+                val_err, val_batches, lhood = 0, 0, 0
+                for Xb in iter_minibatches(X_val, p.batch_size):
+                    val_err += val_nelbo(Xb)
+                    lhood += val_likelihood(Xb)
+                    val_batches += 1
 
         snapshot = get_all_param_values(layers)
 
