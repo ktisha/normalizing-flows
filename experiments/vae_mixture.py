@@ -26,23 +26,26 @@ import numpy as np
 
 class Params(namedtuple("Params", [
     "dataset", "batch_size", "num_epochs", "num_features",
-    "num_latent", "num_hidden", "num_components", "continuous"
+    "num_latent", "num_hidden", "num_components", "continuous",
+    "importance_weighted"
 ])):
     __slots__ = ()
 
     def to_path(self):
         fmt = ("vae_mixture_{dataset}_B{batch_size}_E{num_epochs}_"
-               "N{num_features}_L{num_latent}_H{num_hidden}_N{num_components}_{flag}")
-        return Path(fmt.format(flag="DC"[self.continuous], **self._asdict()))
+               "N{num_features}_L{num_latent}_H{num_hidden}_N{num_components}_{flag}_{iw}")
+        return Path(fmt.format(flag="DC"[self.continuous],
+                               iw="NY"[self.importance_weighted],
+                               **self._asdict()))
 
     @classmethod
     def from_path(cls, path):
-        [(dataset, *chunks, dc)] = re.findall(
-            r"vae_mixture_(\w+)_B(\d+)_E(\d+)_N(\d+)_L(\d+)_H(\d+)_N(\d+)_([DC])", str(path))
+        [(dataset, *chunks, dc, iw)] = re.findall(
+            r"vae_mixture_(\w+)_B(\d+)_E(\d+)_N(\d+)_L(\d+)_H(\d+)_N(\d+)_([DC])_([NY])", str(path))
         (batch_size, num_epochs,
          num_features, num_latent, num_hidden, num_components) = map(int, chunks)
         return cls(dataset, batch_size, num_epochs, num_features, num_latent,
-                   num_hidden, num_components, continuous=dc == "C")
+                   num_hidden, num_components, continuous=dc == "C", importance_weighted=iw == "Y")
 
 
 def build_rec_model(p):
@@ -153,11 +156,16 @@ def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
 
     logw = (logpxz + logpz - logqzx)  # (n_comp, n_samples, batch)
     z_weight_vars = T.reshape(z_weight_vars, [p.num_components, n_samples, p.batch_size])
-    logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
+    if not p.importance_weighted:
+        logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
+    else:
+        logw = logw + T.log(z_weight_vars)
+        logw = T.reshape(logw, [p.num_components * n_samples, p.batch_size])
+    logw = logw - T.log(T.cast(n_samples, theano.config.floatX))
 
     max_w = T.max(logw, 0, keepdims=True)
     adjusted_w = logw - max_w
-    ll = max_w + T.log(T.mean(T.exp(adjusted_w), 0, keepdims=True))
+    ll = max_w + T.log(T.sum(T.exp(adjusted_w), 0, keepdims=True))
     return T.mean(ll)
 
 
@@ -184,7 +192,7 @@ def train_model(X_train, X_val, p, train_bias):
     gen_net = build_gen_model(p, train_bias)
 
     elbo_train = elbo(X_bin, gen_net, rec_net, p, deterministic=False)
-    elbo_val = elbo(X_bin, gen_net, rec_net, p, deterministic=True)
+    elbo_val = elbo(X_bin, gen_net, rec_net, p, deterministic=False)
     likelihood_val = likelihood(X_bin, gen_net, rec_net, p, 3000/p.num_components, deterministic=False)
 
     layers = rec_net["zs"]
@@ -201,7 +209,7 @@ def train_model(X_train, X_val, p, train_bias):
     print("Starting training...")
     monitor = Monitor(p.num_epochs, stop_early=True)
     sw = Stopwatch()
-    x_weights = get_output(rec_net["z_weights"], X_bin, deterministic=True)
+    x_weights = get_output(rec_net["z_weights"], X_bin, deterministic=False)
     weights_func = theano.function([X_var], x_weights)
 
     while monitor:
@@ -257,7 +265,7 @@ def fit_model(**kwargs):
 
 
 def print_weights(X_var, X_train, y_train, rec_net):
-    x_weights = get_output(rec_net["z_weights"], X_var, deterministic=True)
+    x_weights = get_output(rec_net["z_weights"], X_var, deterministic=False)
     weights_func = theano.function([X_var], x_weights)
     for y in set(y_train):
         mask = y_train == y
@@ -284,6 +292,8 @@ if __name__ == "__main__":
     fit_parser.add_argument("-N", dest="num_components", type=int, default=2)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
                             default=False)
+    fit_parser.add_argument("-iw", dest="importance_weighted", action="store_true",
+                            default=False)
     fit_parser.set_defaults(command=fit_model)
 
     args = vars(parser.parse_args())
@@ -298,9 +308,9 @@ if __name__ == "__main__":
     # X_val = X_val[:10000]
     # y_val = y_val[:10000]
     #
-    # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=True)
-    # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=True)
-    # x_weights = get_output(rec_net["z_weights"], X_var, deterministic=True)
+    # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=False)
+    # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=False)
+    # x_weights = get_output(rec_net["z_weights"], X_var, deterministic=False)
     #
     # z_mu = theano.function([X_var], z_mu_function)
     # z_covar = theano.function([X_var], z_log_function)
