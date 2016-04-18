@@ -88,7 +88,6 @@ def kl_mvn_log_mvn_std(mean, log_covar):
 
 def iter_minibatches(X, batch_size):
     indices = np.arange(len(X))
-    np.random.shuffle(indices)
     for i in range(int(np.ceil(len(X) / batch_size))):
         lo = i * batch_size
         hi = (i + 1) * batch_size

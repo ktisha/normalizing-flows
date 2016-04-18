@@ -207,6 +207,9 @@ def train_model(X_train, X_val, p, train_bias):
     while monitor:
         with sw:
             train_err, train_batches = 0, 0
+            indices = np.arange(len(X_train))
+            np.random.shuffle(indices)
+            X_train = X_train[indices]
             for Xb in iter_minibatches(X_train, p.batch_size):
                 train_err += train_nelbo(Xb)
                 train_batches += 1
