@@ -61,6 +61,8 @@ class GaussianNoiseLayer(MergeLayer):
     def get_output_for(self, input, deterministic=False, **kwargs):
         mu, log_covar = input
         if deterministic:
+            assert False
+            # This should never be called!
             return mu
         else:
             eps = self._srng.normal(mu.shape)
