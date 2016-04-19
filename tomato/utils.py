@@ -180,7 +180,7 @@ class Monitor:
         np.savetxt(str(path),
                    np.column_stack([self.train_errs, self.val_errs, self.val_likelihood]),
                    delimiter=",")
-        _plot_errors(path)
+        # _plot_errors(path)
 
 
 def _plot_errors(path):
