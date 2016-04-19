@@ -66,7 +66,7 @@ class GaussianNoiseLayer(MergeLayer):
             return mu
         else:
             eps = self._srng.normal(mu.shape)
-            return mu + T.exp(log_covar) * eps
+            return mu + T.exp(0.5*log_covar) * eps
 
 
 class IndexLayer(Layer):
