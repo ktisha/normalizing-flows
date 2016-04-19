@@ -17,7 +17,7 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.utils import bernoulli_logpmf, \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted, logsumexp
 
 theano.config.floatX = 'float32'
 
@@ -116,7 +116,11 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
     logpz = mvn_std_logpdf(z_vars)
 
     logw = (logpxz + logpz - logqzx)
-    logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
+    if not p.importance_weighted:
+        logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
+    else:
+        logw = logw + T.log(z_weight_vars)
+        logw = logsumexp(logw, axis=0)
 
     return T.mean(
         logw
@@ -163,9 +167,7 @@ def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
         logw = T.reshape(logw, [p.num_components * n_samples, p.batch_size])
     logw = logw - T.log(T.cast(n_samples, theano.config.floatX))
 
-    max_w = T.max(logw, 0, keepdims=True)
-    adjusted_w = logw - max_w
-    ll = max_w + T.log(T.sum(T.exp(adjusted_w), 0, keepdims=True))
+    ll = logsumexp(logw, axis=0)
     return T.mean(ll)
 
 
