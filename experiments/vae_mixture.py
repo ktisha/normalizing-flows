@@ -17,7 +17,7 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.utils import bernoulli_logpmf, \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted, mvn_log_logpdf_weighted
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted
 
 theano.config.floatX = 'float32'
 
@@ -108,8 +108,8 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
     logpxz = T.stacklists(logpxzs)
 
     logqzxs = []
+    z_log_covar_vars = T.exp(z_log_covar_vars)
     for i in range(p.num_components):
-        z_log_covar_vars = T.exp(z_log_covar_vars)
         logqzxs.append(mvn_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
     logqzx = T.stacklists(logqzxs)
 
@@ -150,8 +150,9 @@ def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
     logpxz = T.stacklists(logpxzs)
 
     logqzxs = []
+    z_log_covar_vars = T.exp(z_log_covar_vars)
     for i in range(p.num_components):
-        logqzxs.append(mvn_log_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
+        logqzxs.append(mvn_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
     logqzx = T.stacklists(logqzxs)
     logqzx = T.reshape(logqzx, [p.num_components, n_samples, p.batch_size])
 
@@ -301,7 +302,7 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
-    # path = Path("apr5/vae_mixture_mnist_B500_E500_N784_L2_H200_N3_D.pickle")
+    # path = Path("apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N2_D_N.pickle")
     # rec_net, gen_net = load_model(path)
     # p = Params.from_path(str(path))
     # X_var = T.matrix()
@@ -320,6 +321,7 @@ if __name__ == "__main__":
     # mus = z_mu(X_val)
     # covars = np.exp(z_covar(X_val))
     # weights = weights_func(X_val)
+    # print_weights(X_var, X_train, y_train, rec_net)
 
     # plot_full_histogram(mus, covars, p.num_components)
     # plot_histogram_by_class(mus, covars, y_val, p.num_components)
