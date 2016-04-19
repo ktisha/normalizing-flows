@@ -17,7 +17,7 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.utils import bernoulli_logpmf, \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, mvn_log_logpdf_weighted, logsumexp
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted, mvn_log_logpdf_weighted
 
 theano.config.floatX = 'float32'
 
@@ -109,7 +109,8 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
 
     logqzxs = []
     for i in range(p.num_components):
-        logqzxs.append(mvn_log_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
+        z_log_covar_vars = T.exp(z_log_covar_vars)
+        logqzxs.append(mvn_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
     logqzx = T.stacklists(logqzxs)
 
     z_vars = T.stacklists(z_vars)

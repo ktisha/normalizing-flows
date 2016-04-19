@@ -1,6 +1,7 @@
 import copy
 import time
 from collections import deque
+
 import matplotlib.pyplot as plt
 import numpy as np
 import theano.tensor as T
@@ -40,6 +41,15 @@ def mvn_log_logpdf(X, mean, log_covar):
     return -.5 * (T.log(2 * np.pi)
                   + log_covar
                   + T.square(X - mean) / T.exp(log_covar)).sum(axis=-1)
+
+
+def mvn_logpdf_weighted(X, mean, covar, weights, eps=1e-10):
+    inner = -.5 * (T.log(2 * np.pi)
+                   + T.log(covar)
+                   + T.square(X - mean) / covar).sum(axis=-1)
+    weights = T.clip(weights, eps, 1)
+    inner = inner + T.log(weights)
+    return logsumexp(inner, axis=0)
 
 
 def mvn_log_logpdf_weighted(X, mean, log_covar, weights, eps=1e-10):
