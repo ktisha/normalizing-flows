@@ -116,7 +116,14 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
     logpz = mvn_std_logpdf(z_vars)
 
     logw = (logpxz + logpz - logqzx)
-    logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
+    if not p.importance_weighted:
+        logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
+    else:
+        logw = logw + T.log(z_weight_vars)
+        # log-sum-exp over components
+        max_w = T.max(logw, 0, keepdims=True)
+        adjusted_w = logw - max_w
+        logw = max_w + T.log(T.sum(T.exp(adjusted_w), 0, keepdims=True))
 
     return T.mean(
         logw
