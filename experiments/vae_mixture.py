@@ -16,6 +16,7 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
+from tomato.plot_utils import plot_likelihood
 from tomato.utils import bernoulli_logpmf, \
     iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted
 
@@ -132,7 +133,8 @@ def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
     n_samples = int(n_samples)
     X_vars = T.tile(X_var, [n_samples, 1, 1])    # (n_samples, batch, features)
     s = T.shape(X_vars)
-    X_vars = T.reshape(X_vars, [s[0] * s[1], s[2]])
+    batch_size = s[1]
+    X_vars = T.reshape(X_vars, [s[0] * batch_size, s[2]])
 
     z_mu_vars = T.stacklists(get_output(rec_net["z_mus"], X_vars, **kwargs))  # (n_components, n_samples x batch_size, latent)
     z_log_covar_vars = T.stacklists(get_output(rec_net["z_log_covars"], X_vars, **kwargs))
@@ -145,7 +147,7 @@ def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
     logpxzs = []  # (n_comp, n_samples, batch)
     for i in range(p.num_components):
         x_mu_var = get_output(gen_net["x_mu"], z_vars[i], **kwargs)  # (n_samples x batch_size, features)
-        x_mu_var = T.reshape(x_mu_var, [n_samples, p.batch_size, p.num_features])
+        x_mu_var = T.reshape(x_mu_var, [n_samples, batch_size, p.num_features])
         logpxzs.append(bernoulli_logpmf(X_var, x_mu_var))
     logpxz = T.stacklists(logpxzs)
 
@@ -154,23 +156,26 @@ def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
     for i in range(p.num_components):
         logqzxs.append(mvn_logpdf_weighted(z_vars[i], z_mu_vars, z_log_covar_vars, z_weight_vars))
     logqzx = T.stacklists(logqzxs)
-    logqzx = T.reshape(logqzx, [p.num_components, n_samples, p.batch_size])
+    logqzx = T.reshape(logqzx, [p.num_components, n_samples, batch_size])
 
     z_vars = T.stacklists(z_vars)
     logpz = mvn_std_logpdf(z_vars)
-    logpz = T.reshape(logpz, [p.num_components, n_samples, p.batch_size])
+    logpz = T.reshape(logpz, [p.num_components, n_samples, batch_size])
 
     logw = (logpxz + logpz - logqzx)  # (n_comp, n_samples, batch)
     z_weight_vars = T.reshape(z_weight_vars, [p.num_components, n_samples, p.batch_size])
     if not p.importance_weighted:
+        logw = logsumexp(logw, axis=0)
+        logw = logw - T.log(T.cast(n_samples, theano.config.floatX))
         logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
     else:
         logw = logw + T.log(z_weight_vars)
         logw = T.reshape(logw, [p.num_components * n_samples, p.batch_size])
-    logw = logw - T.log(T.cast(n_samples, theano.config.floatX))
 
-    ll = logsumexp(logw, axis=0)
-    return T.mean(ll)
+        logw = logw - T.log(T.cast(n_samples, theano.config.floatX))
+        logw = logsumexp(logw, axis=0)
+
+    return T.mean(logw)
 
 
 def load_model(path):
@@ -199,7 +204,8 @@ def train_model(X_train, X_val, p, train_bias):
     elbo_val = elbo(X_bin, gen_net, rec_net, p, deterministic=False)
     likelihood_val = likelihood(X_bin, gen_net, rec_net, p, 3000/p.num_components, deterministic=False)
 
-    layers = rec_net["zs"]
+    layers = []
+    layers.extend(rec_net["zs"])
     layers.append(rec_net["z_weights"])
     layers.append(gen_net["dec_output"])
     params = get_all_params(layers, trainable=True)
@@ -329,3 +335,5 @@ if __name__ == "__main__":
     # plot_mu_by_components(mus, y_val, p.num_components)
 
     # plot_object_info(mus, covars, X_val, y_val, weights, p.num_components)
+    # plot_likelihood("apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N1_D_N.csv",
+    #                 "apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N2_D_N.csv")
