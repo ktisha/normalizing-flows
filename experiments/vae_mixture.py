@@ -18,7 +18,7 @@ from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_likelihood
 from tomato.utils import bernoulli_logpmf, \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted, kl_mvn_log_mvn_std
 
 theano.config.floatX = 'float32'
 
@@ -165,9 +165,11 @@ def likelihood(X_var, gen_net, rec_net, p, n_samples=100, **kwargs):
     logw = (logpxz + logpz - logqzx)  # (n_comp, n_samples, batch)
     z_weight_vars = T.reshape(z_weight_vars, [p.num_components, n_samples, p.batch_size])
     if not p.importance_weighted:
+        logw = logw.dimshuffle(1, 0, 2)
         logw = logsumexp(logw, axis=0)
         logw = logw - T.log(T.cast(n_samples, theano.config.floatX))
-        logw = T.sum(T.mul(logw, z_weight_vars), axis=0)
+        weights = z_weight_vars.dimshuffle(1, 0, 2)
+        logw = T.sum(T.mul(logw, weights[0]), axis=0)
     else:
         logw = logw + T.log(z_weight_vars)
         logw = T.reshape(logw, [p.num_components * n_samples, p.batch_size])
@@ -313,9 +315,41 @@ if __name__ == "__main__":
     # p = Params.from_path(str(path))
     # X_var = T.matrix()
     # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
-    # X_val = X_val[:10000]
-    # y_val = y_val[:10000]
     #
+    # import numpy as np
+    # srng = MRG_RandomStreams(seed=123)
+    # X_bin = np.random.uniform(size=X_val.shape) < X_val
+    #
+    # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=False)
+    # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=False)
+    # z_mu = theano.function([X_var], z_mu_function)
+    # z_covar = theano.function([X_var], z_log_function)
+    # mus = z_mu(X_val)
+    # covars = np.exp(z_covar(X_val))
+    #
+    # print(mus[0].shape)
+    #
+    # KL = kl_mvn_log_mvn_std(mus[0], covars[0])
+    # KL2 = kl_mvn_log_mvn_std(mus[1], covars[1])
+    # print(KL.shape)
+    # import matplotlib.pyplot as plt
+    #
+    # plt.xticks(np.arange(0, 50, 1.0))
+    # for i in range(20):
+    #     plt.plot(np.arange(50), KL[i], c='r')
+    #     plt.plot(np.arange(50), KL2[i], c='g')
+    # plt.show()
+    #
+    # likelihood_val = likelihood(X_var, gen_net, rec_net, p, 300//p.num_components, deterministic=False)
+    # val_likelihood = theano.function([X_var], likelihood_val)
+    #
+    # for Xb in iter_minibatches(X_bin, p.batch_size):
+    #     print(val_likelihood(Xb))
+    #     break
+
+    #     # X_val = X_val[:10000]
+    # # y_val = y_val[:10000]
+    # #
     # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=False)
     # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=False)
     # x_weights = get_output(rec_net["z_weights"], X_var, deterministic=False)
