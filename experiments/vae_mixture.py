@@ -344,9 +344,15 @@ if __name__ == "__main__":
     X_var = T.matrix()
     x_weights = get_output(rec_net["z_weights"], X_var, deterministic=False)
     weights_func = theano.function([X_var], x_weights)
-    print(weights_func(X_train))
+    X_weights = weights_func(X_decoded)
+    print(np.argmax(X_weights, axis=1))
+    component_index = np.argmax(X_weights, axis=1)
 
-    plt.scatter(X_decoded[:, 0], X_decoded[:, 1], color="red", lw=.3, s=3, cmap=plt.cm.cool)
+    colors = ['r', 'g', 'm', 'y', 'c', 'k']
+    for i in range(p.num_components):
+        compi = X_decoded[component_index == i]
+        plt.scatter(compi[:, 0], compi[:, 1], color=colors[i], label="component " + str(i), lw=.3, s=3, cmap=plt.cm.cool)
+    plt.legend()
     plt.savefig("x.png")
 
     # path = Path("apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N2_D_N.pickle")

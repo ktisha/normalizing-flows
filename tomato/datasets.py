@@ -114,7 +114,7 @@ def load_mixture():
 
 def load_potential():
     N = 3000
-    p = Potential(1)
+    p = Potential(2)
     f = p.compile()
 
     Z01 = np.linspace(-4, 4, num=400)
