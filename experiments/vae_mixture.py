@@ -18,6 +18,8 @@ from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_likelihood
 from lasagne.utils import floatX as as_floatX
+
+from tomato.potentials import Potential
 from tomato.utils import bernoulli_logpmf, \
     iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted, kl_mvn_log_mvn_std, bernoulli, \
     bernoulli_logit_density, mvn_logpdf, mvn_log_logpdf
@@ -243,8 +245,8 @@ def train_model(X_train, X_val, p, train_bias):
             print(np.isclose(w_max, np.ones(w_max.shape[0]), 0.01, 0.01).sum())
             counter = Counter(np.argmax(weights, axis=1))
             print(counter)
-            # if len(counter) < p.num_components and monitor.epoch == 0:
-            #     return False
+            if len(counter) < p.num_components and monitor.epoch == 0:
+                return False
 
             # if monitor.epoch % 100 == 0:
             val_err, val_batches, lhood = 0, 0, 0
@@ -303,7 +305,7 @@ if __name__ == "__main__":
     fit_parser.add_argument("dataset", type=str)
     fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=200)
-    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=500)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=100)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-N", dest="num_components", type=int, default=2)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
@@ -317,7 +319,7 @@ if __name__ == "__main__":
     command(**args)
 
     import matplotlib.pyplot as plt
-    X_train, X_test = load_dataset('gauss', False)
+    X_train, X_test = load_dataset('potential', False)
     plt.scatter(X_train[:, 0], X_train[:, 1], lw=.3, s=3, cmap=plt.cm.cool)
 
     #  plot samples
@@ -344,8 +346,8 @@ if __name__ == "__main__":
     print(weights_func(X_train))
 
     plt.scatter(X_decoded[:, 0], X_decoded[:, 1], color="red", lw=.3, s=3, cmap=plt.cm.cool)
-    # plt.xlim([-100, 100])
-    # plt.ylim([-100, 100])
+    plt.xlim([-4, 4])
+    plt.ylim([-4, 4])
     plt.savefig("x.png")
 
     # path = Path("apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N2_D_N.pickle")

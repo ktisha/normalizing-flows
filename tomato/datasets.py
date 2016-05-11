@@ -8,6 +8,8 @@ from scipy.io import loadmat
 import pickle
 
 # Absolute path to the data directory.
+from tomato.potentials import Potential
+
 DATA_ROOT = Path(__file__).parent / "data"
 
 if not DATA_ROOT.exists():
@@ -110,6 +112,23 @@ def load_mixture():
     return X_train, X_val
 
 
+def load_potential():
+    N = 3000
+    p = Potential(1)
+    f = p.compile()
+
+    Z01 = np.linspace(-4, 4, num=400)
+    r = as_floatX(np.dstack(np.meshgrid(Z01, Z01)).reshape(-1, 2))
+    Y = f(r)
+    indices = np.random.choice(len(r), size=N, p=Y / sum(Y))
+    X = r[indices]
+    np.random.shuffle(X)
+    X = as_floatX(X)
+    X_train = X[:2 * N / 3, :]
+    X_val = X[2 * N / 3:, :]
+    return X_train, X_val
+
+
 def load_dataset(name, continuous, returnLabels=False):
     if name == "mnist":
         return load_mnist_dataset(continuous, returnLabels)
@@ -119,5 +138,8 @@ def load_dataset(name, continuous, returnLabels=False):
         return load_frey_dataset(continuous)
     elif name == "gauss":
         return load_mixture()
+    elif name == "potential":
+        return load_potential()
     else:
         raise ValueError(name)
+
