@@ -31,6 +31,12 @@ def bernoulli(X, mu):
     return T.power(mu, X) * T.power((1.0 - mu), (1.0 - X))
 
 
+def bernoulli_logit_density(x, f):
+    logp = -T.nnet.softplus(-f)
+    logip = -T.nnet.softplus(f)
+    return T.sum(x * logp + (1. - x) * logip, -1)
+
+
 def mvn_logvar_pdf(x, mu, log_covar):
     covar = T.exp(log_covar)
     u = -T.square(x - mu) / (2 * covar)
@@ -177,9 +183,11 @@ class Monitor:
         self.epoch += 1
 
     def save(self, path):
-        np.savetxt(str(path),
-                   np.column_stack([self.train_errs, self.val_errs, self.val_likelihood]),
-                   delimiter=",")
+        if self.val_likelihood:
+            columns = np.column_stack([self.train_errs, self.val_errs, self.val_likelihood])
+        else:
+            columns = np.column_stack([self.train_errs, self.val_errs])
+        np.savetxt(str(path), columns, delimiter=",")
         # _plot_errors(path)
 
 

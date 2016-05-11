@@ -17,8 +17,10 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams
 from tomato.datasets import load_dataset
 from tomato.layers import GaussianNoiseLayer
 from tomato.plot_utils import plot_likelihood
+from lasagne.utils import floatX as as_floatX
 from tomato.utils import bernoulli_logpmf, \
-    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted, kl_mvn_log_mvn_std
+    iter_minibatches, Stopwatch, Monitor, mvn_std_logpdf, logsumexp, mvn_logpdf_weighted, kl_mvn_log_mvn_std, bernoulli, \
+    bernoulli_logit_density, mvn_logpdf, mvn_log_logpdf
 
 theano.config.floatX = 'float32'
 
@@ -84,7 +86,7 @@ def build_gen_model(p, bias=Constant(0)):
                                    nonlinearity=tanh)
 
     net["x_mu"] = DenseLayer(net["dec_hidden"], num_units=p.num_features,
-                             nonlinearity=sigmoid, b=bias)
+                             nonlinearity=identity, b=bias)
     if p.continuous:
         net["x_log_covar"] = DenseLayer(net["dec_hidden"],
                                         num_units=p.num_features,
@@ -105,7 +107,11 @@ def elbo(X_var, gen_net, rec_net, p, **kwargs):
     logpxzs = []           # (n_comp, batch, features)
     for i in range(p.num_components):
         x_mu_var = get_output(gen_net["x_mu"], z_vars[i], **kwargs)  # (batch_size, features)
-        logpxzs.append(bernoulli_logpmf(X_var, x_mu_var))
+        if p.continuous:
+            x_covar_var = get_output(gen_net["x_log_covar"], z_vars[i], **kwargs)  # (batch_size, features)
+            logpxzs.append(mvn_log_logpdf(X_var, x_mu_var, x_covar_var))
+        else:
+            logpxzs.append(bernoulli_logit_density(X_var, x_mu_var))
     logpxz = T.stacklists(logpxzs)
 
     logqzxs = []
@@ -197,14 +203,14 @@ def train_model(X_train, X_val, p, train_bias):
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
     srng = MRG_RandomStreams(seed=123)
-    X_bin = T.cast(T.le(srng.uniform(T.shape(X_var)), X_var), 'float32')
+    X_bin = T.cast(T.le(srng.uniform(T.shape(X_var)), X_var), 'float32') if p.dataset != 'gauss' else X_var
 
     rec_net = build_rec_model(p)
     gen_net = build_gen_model(p, train_bias)
 
     elbo_train = elbo(X_bin, gen_net, rec_net, p, deterministic=False)
     elbo_val = elbo(X_bin, gen_net, rec_net, p, deterministic=False)
-    likelihood_val = likelihood(X_bin, gen_net, rec_net, p, 3000/p.num_components, deterministic=False)
+    # likelihood_val = likelihood(X_bin, gen_net, rec_net, p, 3000/p.num_components, deterministic=False)
 
     layers = []
     layers.extend(rec_net["zs"])
@@ -216,10 +222,10 @@ def train_model(X_train, X_val, p, train_bias):
     updates = adam(updates, params, learning_rate=1e-3, epsilon=1e-4, beta1=0.99)
     train_nelbo = theano.function([X_var], elbo_train, updates=updates)
     val_nelbo = theano.function([X_var], elbo_val)
-    val_likelihood = theano.function([X_var], likelihood_val)
+    # val_likelihood = theano.function([X_var], likelihood_val)
 
     print("Starting training...")
-    monitor = Monitor(p.num_epochs, stop_early=True)
+    monitor = Monitor(p.num_epochs, stop_early=False)
     sw = Stopwatch()
     x_weights = get_output(rec_net["z_weights"], X_bin, deterministic=False)
     weights_func = theano.function([X_var], x_weights)
@@ -237,20 +243,20 @@ def train_model(X_train, X_val, p, train_bias):
             print(np.isclose(w_max, np.ones(w_max.shape[0]), 0.01, 0.01).sum())
             counter = Counter(np.argmax(weights, axis=1))
             print(counter)
-            if len(counter) < p.num_components and monitor.epoch == 0:
-                return False
+            # if len(counter) < p.num_components and monitor.epoch == 0:
+            #     return False
 
-            if monitor.epoch % 100 == 0:
-                val_err, val_batches, lhood = 0, 0, 0
-                for Xb in iter_minibatches(X_val, p.batch_size):
-                    val_err += val_nelbo(Xb)
-                    lhood += val_likelihood(Xb)
-                    val_batches += 1
+            # if monitor.epoch % 100 == 0:
+            val_err, val_batches, lhood = 0, 0, 0
+            for Xb in iter_minibatches(X_val, p.batch_size):
+                val_err += val_nelbo(Xb)
+                # lhood += val_likelihood(Xb)
+                val_batches += 1
 
         snapshot = get_all_param_values(layers)
 
         monitor.report(snapshot, sw, train_err / train_batches,
-                       val_err / val_batches, lhood / val_batches)
+                       val_err / val_batches)
 
     path = p.to_path()
     monitor.save(path.with_suffix(".csv"))
@@ -297,11 +303,11 @@ if __name__ == "__main__":
     fit_parser.add_argument("dataset", type=str)
     fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=200)
-    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=1000)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=500)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-N", dest="num_components", type=int, default=2)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
-                            default=False)
+                            default=True)
     fit_parser.add_argument("-iw", dest="importance_weighted", action="store_true",
                             default=False)
     fit_parser.set_defaults(command=fit_model)
@@ -309,6 +315,38 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
     command = args.pop("command")
     command(**args)
+
+    import matplotlib.pyplot as plt
+    X_train, X_test = load_dataset('gauss', False)
+    plt.scatter(X_train[:, 0], X_train[:, 1], lw=.3, s=3, cmap=plt.cm.cool)
+
+    #  plot samples
+    p = Params(num_features=2, **args)
+    path = p.to_path().with_suffix(".pickle")
+    rec_net, gen_net = load_model(path)
+    num_samples = 2000
+    z_var = T.matrix()
+    Z = as_floatX(np.random.normal(size=(num_samples, 2)))
+
+    x_mu = theano.function([z_var], get_output(gen_net["x_mu"], z_var, deterministic=False))
+    mu = x_mu(Z)
+
+    if p.continuous:
+        x_covar = theano.function([z_var], T.exp(get_output(gen_net["x_log_covar"], z_var, deterministic=False)))
+        covar = x_covar(Z)
+        X_decoded = np.random.normal(mu, covar)
+    else:
+        X_decoded = mu
+
+    X_var = T.matrix()
+    x_weights = get_output(rec_net["z_weights"], X_var, deterministic=False)
+    weights_func = theano.function([X_var], x_weights)
+    print(weights_func(X_train))
+
+    plt.scatter(X_decoded[:, 0], X_decoded[:, 1], color="red", lw=.3, s=3, cmap=plt.cm.cool)
+    # plt.xlim([-100, 100])
+    # plt.ylim([-100, 100])
+    plt.savefig("x.png")
 
     # path = Path("apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N2_D_N.pickle")
     # rec_net, gen_net = load_model(path)

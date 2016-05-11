@@ -96,6 +96,20 @@ def load_frey_dataset(continuous):
     return X_train, X_val
 
 
+def load_mixture():
+    N = 3000
+    cov = [[0.1, 0], [0, 0.1]]
+    cov1 = [[0.1, 0], [0, 0.1]]
+    X = np.concatenate([np.random.multivariate_normal(np.array([-1, -1]), cov, [N // 2]),
+                        np.random.multivariate_normal(np.array([1, 1]), cov1, [N // 2])])
+
+    np.random.shuffle(X)
+    X = as_floatX(X)
+    X_train = X[:2 * N / 3, :]
+    X_val = X[2 * N / 3:, :]
+    return X_train, X_val
+
+
 def load_dataset(name, continuous, returnLabels=False):
     if name == "mnist":
         return load_mnist_dataset(continuous, returnLabels)
@@ -103,5 +117,7 @@ def load_dataset(name, continuous, returnLabels=False):
         return load_mnist_binarized()
     elif name == "frey":
         return load_frey_dataset(continuous)
+    elif name == "gauss":
+        return load_mixture()
     else:
         raise ValueError(name)
