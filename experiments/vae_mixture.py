@@ -205,7 +205,8 @@ def train_model(X_train, X_val, p, train_bias):
     print("Building model and compiling functions...")
     X_var = T.matrix("X")
     srng = MRG_RandomStreams(seed=123)
-    X_bin = T.cast(T.le(srng.uniform(T.shape(X_var)), X_var), 'float32') if p.dataset != 'gauss' else X_var
+    X_bin = T.cast(T.le(srng.uniform(T.shape(X_var)), X_var), 'float32') if p.dataset != 'gauss' \
+                                                                            and p.dataset != 'potential' else X_var
 
     rec_net = build_rec_model(p)
     gen_net = build_gen_model(p, train_bias)
@@ -245,8 +246,8 @@ def train_model(X_train, X_val, p, train_bias):
             print(np.isclose(w_max, np.ones(w_max.shape[0]), 0.01, 0.01).sum())
             counter = Counter(np.argmax(weights, axis=1))
             print(counter)
-            if len(counter) < p.num_components and monitor.epoch == 0:
-                return False
+            # if len(counter) < p.num_components and monitor.epoch == 0:
+            #     return False
 
             # if monitor.epoch % 100 == 0:
             val_err, val_batches, lhood = 0, 0, 0
@@ -305,7 +306,7 @@ if __name__ == "__main__":
     fit_parser.add_argument("dataset", type=str)
     fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=200)
-    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=100)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=500)
     fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
     fit_parser.add_argument("-N", dest="num_components", type=int, default=2)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
@@ -319,7 +320,7 @@ if __name__ == "__main__":
     command(**args)
 
     import matplotlib.pyplot as plt
-    X_train, X_test = load_dataset('potential', False)
+    X_train, X_test = load_dataset(args['dataset'], False)
     plt.scatter(X_train[:, 0], X_train[:, 1], lw=.3, s=3, cmap=plt.cm.cool)
 
     #  plot samples
@@ -346,8 +347,6 @@ if __name__ == "__main__":
     print(weights_func(X_train))
 
     plt.scatter(X_decoded[:, 0], X_decoded[:, 1], color="red", lw=.3, s=3, cmap=plt.cm.cool)
-    plt.xlim([-4, 4])
-    plt.ylim([-4, 4])
     plt.savefig("x.png")
 
     # path = Path("apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N2_D_N.pickle")

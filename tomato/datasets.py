@@ -102,8 +102,8 @@ def load_mixture():
     N = 3000
     cov = [[0.1, 0], [0, 0.1]]
     cov1 = [[0.1, 0], [0, 0.1]]
-    X = np.concatenate([np.random.multivariate_normal(np.array([-1, -1]), cov, [N // 2]),
-                        np.random.multivariate_normal(np.array([1, 1]), cov1, [N // 2])])
+    X = np.concatenate([np.random.multivariate_normal(np.array([-5, -5]), cov, [N // 2]),
+                        np.random.multivariate_normal(np.array([-5, 0]), cov1, [N // 2])])
 
     np.random.shuffle(X)
     X = as_floatX(X)
