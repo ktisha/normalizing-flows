@@ -306,8 +306,8 @@ if __name__ == "__main__":
     fit_parser.add_argument("dataset", type=str)
     fit_parser.add_argument("-L", dest="num_latent", type=int, default=2)
     fit_parser.add_argument("-H", dest="num_hidden", type=int, default=200)
-    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=500)
-    fit_parser.add_argument("-B", dest="batch_size", type=int, default=500)
+    fit_parser.add_argument("-E", dest="num_epochs", type=int, default=5000)
+    fit_parser.add_argument("-B", dest="batch_size", type=int, default=200)
     fit_parser.add_argument("-N", dest="num_components", type=int, default=2)
     fit_parser.add_argument("-c", dest="continuous", action="store_true",
                             default=True)
@@ -319,11 +319,11 @@ if __name__ == "__main__":
     command = args.pop("command")
     command(**args)
 
+    ###  plot samples ###
     import matplotlib.pyplot as plt
     X_train, X_test = load_dataset(args['dataset'], False)
-    plt.scatter(X_train[:, 0], X_train[:, 1], lw=.3, s=3, cmap=plt.cm.cool)
+    plt.scatter(X_train[:, 0], X_train[:, 1], color="lightsteelblue", lw=.3, s=3, cmap=plt.cool)
 
-    #  plot samples
     p = Params(num_features=2, **args)
     path = p.to_path().with_suffix(".pickle")
     rec_net, gen_net = load_model(path)
@@ -345,74 +345,51 @@ if __name__ == "__main__":
     x_weights = get_output(rec_net["z_weights"], X_var, deterministic=False)
     weights_func = theano.function([X_var], x_weights)
     X_weights = weights_func(X_decoded)
-    print(np.argmax(X_weights, axis=1))
     component_index = np.argmax(X_weights, axis=1)
+    w_max = np.max(X_weights, axis=1)
+    print(np.isclose(w_max, np.ones(w_max.shape[0]), 0.01, 0.01).sum())
+    print(Counter(component_index))
 
-    colors = ['r', 'g', 'm', 'y', 'c', 'k']
+    colors = ['r', 'g', 'c', 'y']
     for i in range(p.num_components):
         compi = X_decoded[component_index == i]
-        plt.scatter(compi[:, 0], compi[:, 1], color=colors[i], label="component " + str(i), lw=.3, s=3, cmap=plt.cm.cool)
+        plt.scatter(compi[:, 0], compi[:, 1], color=colors[i], label="component " + str(i), lw=.3, s=3, cmap=plt.cool)
+        # H, xedges, yedges = np.histogram2d(X_decoded[:, 0], X_decoded[:, 1])
+        # extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+        # plt.contour(H.T, 10, extent=extent, colors=colors[i])
+
+    plt.xlim([-4, 4])
+    plt.ylim([-4, 4])
     plt.legend()
-    plt.savefig("x.png")
+    plt.savefig("reconstructed.png")
 
-    # path = Path("apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N2_D_N.pickle")
-    # rec_net, gen_net = load_model(path)
-    # p = Params.from_path(str(path))
-    # X_var = T.matrix()
-    # X_train, X_val, y_train, y_val = load_dataset("mnist", False, True)
-    #
-    # import numpy as np
-    # srng = MRG_RandomStreams(seed=123)
-    # X_bin = np.random.uniform(size=X_val.shape) < X_val
-    #
-    # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=False)
-    # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=False)
-    # z_mu = theano.function([X_var], z_mu_function)
-    # z_covar = theano.function([X_var], z_log_function)
-    # mus = z_mu(X_val)
-    # covars = np.exp(z_covar(X_val))
-    #
-    # print(mus[0].shape)
-    #
-    # KL = kl_mvn_log_mvn_std(mus[0], covars[0])
-    # KL2 = kl_mvn_log_mvn_std(mus[1], covars[1])
-    # print(KL.shape)
-    # import matplotlib.pyplot as plt
-    #
-    # plt.xticks(np.arange(0, 50, 1.0))
-    # for i in range(20):
-    #     plt.plot(np.arange(50), KL[i], c='r')
-    #     plt.plot(np.arange(50), KL2[i], c='g')
-    # plt.show()
-    #
-    # likelihood_val = likelihood(X_var, gen_net, rec_net, p, 300//p.num_components, deterministic=False)
-    # val_likelihood = theano.function([X_var], likelihood_val)
-    #
-    # for Xb in iter_minibatches(X_bin, p.batch_size):
-    #     print(val_likelihood(Xb))
-    #     break
+    plt.clf()
 
-    #     # X_val = X_val[:10000]
-    # # y_val = y_val[:10000]
-    # #
-    # z_mu_function = get_output(rec_net["z_mus"], X_var, deterministic=False)
-    # z_log_function = get_output(rec_net["z_log_covars"], X_var, deterministic=False)
-    # x_weights = get_output(rec_net["z_weights"], X_var, deterministic=False)
-    #
-    # z_mu = theano.function([X_var], z_mu_function)
-    # z_covar = theano.function([X_var], z_log_function)
-    # weights_func = theano.function([X_var], x_weights)
-    #
-    # mus = z_mu(X_val)
-    # covars = np.exp(z_covar(X_val))
-    # weights = weights_func(X_val)
-    # print_weights(X_var, X_train, y_train, rec_net)
+    ### plot latent space ###
 
-    # plot_full_histogram(mus, covars, p.num_components)
-    # plot_histogram_by_class(mus, covars, y_val, p.num_components)
-    # plot_mu_by_class(mus, y_val, p.num_components)
-    # plot_mu_by_components(mus, y_val, p.num_components)
+    X_var = T.matrix()
+    zs = theano.function([X_var], get_output(rec_net["zs"], X_var, deterministic=False))
+    z_mus = theano.function([X_var], get_output(rec_net["z_mus"], X_var, deterministic=False))
+    z_covars = theano.function([X_var], T.exp(get_output(rec_net["z_log_covars"], X_var, deterministic=False)))
+    mus = z_mus(X_train)
+    covars = z_covars(X_train)
+    zz = zs(X_train)
 
-    # plot_object_info(mus, covars, X_val, y_val, weights, p.num_components)
-    # plot_likelihood("apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N1_D_N.csv",
-    #                 "apr19/vae_mixture_mnist_B500_E1000_N784_L50_H200_N2_D_N.csv")
+    plt.scatter(X_train[:, 0], X_train[:, 1], color='lightsteelblue', lw=.3, s=3, cmap=plt.cool)
+
+    for j in range(p.num_components):
+        # z_latent = np.random.multivariate_normal(mus[j][i], np.diag(covars[j][i]), 1000)
+        # z_latent = np.random.normal(mus[j], covars[j])
+        z_latent = zz[j]
+        # z_latent = np.random.multivariate_normal(np.mean(mus[j], 0), np.diag(np.mean(covars[j], 0)), 1000)
+        # plt.scatter(z_latent[:, 0], z_latent[:, 1], color=colors[j], label="component " + str(j), lw=.3, s=3, cmap=plt.cool)
+
+        H, xedges, yedges = np.histogram2d(z_latent[:, 0], z_latent[:, 1])
+        extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+
+        plt.contour(H.T, 5, extent=extent, colors=colors[j], levels=[100, 1e3])
+
+    plt.xlim([-4, 4])
+    plt.ylim([-4, 4])
+    plt.legend()
+    plt.savefig("latent.png")

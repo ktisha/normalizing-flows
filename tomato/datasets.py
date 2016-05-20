@@ -107,14 +107,14 @@ def load_mixture():
 
     np.random.shuffle(X)
     X = as_floatX(X)
-    X_train = X[:2 * N / 3, :]
-    X_val = X[2 * N / 3:, :]
+    X_train = X[:2 * N // 3, :]
+    X_val = X[2 * N // 3:, :]
     return X_train, X_val
 
 
 def load_potential():
-    N = 3000
-    p = Potential(2)
+    N = 30000
+    p = Potential(1)
     f = p.compile()
 
     Z01 = np.linspace(-4, 4, num=400)
@@ -124,8 +124,8 @@ def load_potential():
     X = r[indices]
     np.random.shuffle(X)
     X = as_floatX(X)
-    X_train = X[:2 * N / 3, :]
-    X_val = X[2 * N / 3:, :]
+    X_train = X[:2 * N // 3, :]
+    X_val = X[2 * N // 3:, :]
     return X_train, X_val
 
 
