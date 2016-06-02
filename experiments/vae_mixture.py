@@ -12,6 +12,7 @@ from lasagne.layers import InputLayer, DenseLayer, get_output, \
     concat
 from lasagne.nonlinearities import identity, tanh, softmax, sigmoid
 from lasagne.updates import adam
+from matplotlib.patches import Ellipse
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 from tomato.datasets import load_dataset
@@ -354,9 +355,6 @@ if __name__ == "__main__":
     for i in range(p.num_components):
         compi = X_decoded[component_index == i]
         plt.scatter(compi[:, 0], compi[:, 1], color=colors[i], label="component " + str(i), lw=.3, s=3, cmap=plt.cool)
-        # H, xedges, yedges = np.histogram2d(X_decoded[:, 0], X_decoded[:, 1])
-        # extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-        # plt.contour(H.T, 10, extent=extent, colors=colors[i])
 
     plt.xlim([-4, 4])
     plt.ylim([-4, 4])
@@ -375,21 +373,27 @@ if __name__ == "__main__":
     covars = z_covars(X_train)
     zz = zs(X_train)
 
+    ax = plt.subplot(111, aspect='equal')
+
     plt.scatter(X_train[:, 0], X_train[:, 1], color='lightsteelblue', lw=.3, s=3, cmap=plt.cool)
 
     for j in range(p.num_components):
-        # z_latent = np.random.multivariate_normal(mus[j][i], np.diag(covars[j][i]), 1000)
-        # z_latent = np.random.normal(mus[j], covars[j])
         z_latent = zz[j]
-        # z_latent = np.random.multivariate_normal(np.mean(mus[j], 0), np.diag(np.mean(covars[j], 0)), 1000)
-        # plt.scatter(z_latent[:, 0], z_latent[:, 1], color=colors[j], label="component " + str(j), lw=.3, s=3, cmap=plt.cool)
+        # plt.scatter(z_latent[:, 1], z_latent[:, 0], color=colors[j], label="component " + str(j), lw=.3, s=3, cmap=plt.cool)
 
-        H, xedges, yedges = np.histogram2d(z_latent[:, 0], z_latent[:, 1])
-        extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+        x = z_latent[:, 1]
+        y = z_latent[:, 0]
+        cov = np.cov(x, y)
+        lambda_, v = np.linalg.eig(cov)
+        lambda_ = np.sqrt(lambda_)
+        ell = Ellipse(xy=(np.mean(x), np.mean(y)),
+                  width=lambda_[0]*2*2, height=lambda_[1]*2*2,
+                  angle=np.rad2deg(np.arccos(v[0, 0])))
+        ell.set_color(colors[j])
+        ell.set_facecolor('none')
 
-        plt.contour(H.T, 5, extent=extent, colors=colors[j], levels=[100, 1e3])
+        ax.add_artist(ell)
 
-    plt.xlim([-4, 4])
-    plt.ylim([-4, 4])
-    plt.legend()
+    # plt.xlim([-4, 4])
+    # plt.ylim([-4, 4])
     plt.savefig("latent.png")
